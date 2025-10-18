@@ -1,0 +1,13 @@
+{
+    "material_fast": "H-ZF52-1470",
+    "re_index_fast": "1.8013",
+    "foc_curvature": "17.63",
+    "foc_efl": "22",
+    "foc_thickness": "3.2",
+    "material_slow": "H-ZF52-976",
+    "re_index_slow": "1.8145",
+    "soc_curvature": "8.96",
+    "soc_efl": "11",
+    "soc_thickness": "3.2",
+    "precision": 2
+}
