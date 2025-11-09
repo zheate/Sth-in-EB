@@ -69,7 +69,7 @@ def init_session_state():
             "precision": saved_inputs.get("precision", 3),
             "has_endcap": saved_inputs.get("has_endcap", False),
             "endcap_material": saved_inputs.get("endcap_material", "SK1310_976"),
-            "endcap_length": saved_inputs.get("endcap_length", "5"),
+            "endcap_length": saved_inputs.get("endcap_length", "5.0"),
         }
     
     if "show_material_manager" not in st.session_state:
@@ -448,7 +448,7 @@ def main():
             with endcap_sub_col3:
                 endcap_length = st.text_input(
                     "端帽长度 [mm]",
-                    value=st.session_state.inputs.get("endcap_length", "5"),
+                    value=st.session_state.inputs.get("endcap_length", "5.0"),
                     key="bfd_endcap_length_input",
                     help="输入端帽的长度"
                 )

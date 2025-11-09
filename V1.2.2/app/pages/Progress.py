@@ -901,7 +901,7 @@ if st.session_state.progress_df is not None:
             st.caption('当前筛选结果已缓存，可在“数据分析”页统一保存。')
 
             # 显示统计信息
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns([1, 1.2, 1, 1.5])
             with col1:
                 st.metric("壳体总数", len(filtered_progress_df))
             with col2:
@@ -910,6 +910,32 @@ if st.session_state.progress_df is not None:
             with col3:
                 total_stations = len(BASE_STATIONS)
                 st.metric("基础站别数", total_stations)
+            with col4:
+                # 获取最新测试时间
+                latest_time = None
+                for _, row in filtered_progress_df.iterrows():
+                    station_times = row.get('站别时间', {})
+                    if isinstance(station_times, dict):
+                        for time_value in station_times.values():
+                            if time_value is not None and time_value != '':
+                                try:
+                                    if isinstance(time_value, pd.Timestamp):
+                                        parsed_time = time_value
+                                    elif isinstance(time_value, datetime):
+                                        parsed_time = pd.Timestamp(time_value)
+                                    else:
+                                        parsed_time = pd.to_datetime(time_value, errors='coerce')
+                                    
+                                    if pd.notna(parsed_time):
+                                        if latest_time is None or parsed_time > latest_time:
+                                            latest_time = parsed_time
+                                except:
+                                    pass
+                
+                if latest_time:
+                    st.metric("最新测试时间", latest_time.strftime("%Y-%m-%d %H:%M"))
+                else:
+                    st.metric("最新测试时间", "无数据")
             
             counts_df = calculate_station_counts(filtered_progress_df)
             if not counts_df.empty:
@@ -931,47 +957,102 @@ if st.session_state.progress_df is not None:
                     )
                     st.altair_chart(chart, use_container_width=True)
             
+            # 工程分析站别分布
+            engineering_df = filtered_progress_df[filtered_progress_df['是否工程分析'] == True]
+            if not engineering_df.empty:
+                st.markdown("---")
+                st.markdown("### 🔍 工程分析站别分布")
+                
+                # 统计工程分析在各站别的数量
+                engineering_stations = []
+                for _, row in engineering_df.iterrows():
+                    last_station = row.get('上一站', '')
+                    last_station_normalized = normalize_station_name(last_station)
+                    if last_station_normalized:
+                        engineering_stations.append(last_station_normalized)
+                
+                if engineering_stations:
+                    engineering_counts = pd.Series(engineering_stations).value_counts().reset_index()
+                    engineering_counts.columns = ['站别', '数量']
+                    engineering_counts['占比'] = engineering_counts['数量'] / engineering_counts['数量'].sum()
+                    
+                    eng_table_col, eng_chart_col = st.columns([2, 3])
+                    
+                    with eng_table_col:
+                        st.caption(f"工程分析总数: {len(engineering_df)} 个")
+                        eng_counts_style = engineering_counts.style.format({"占比": "{:.1%}"})
+                        st.dataframe(eng_counts_style, width='stretch', height=300)
+                    
+                    with eng_chart_col:
+                        # 创建饼图
+                        pie_chart = alt.Chart(engineering_counts).mark_arc(innerRadius=40).encode(
+                            theta=alt.Theta('数量:Q', stack=True),
+                            color=alt.Color('站别:N', 
+                                          legend=alt.Legend(title='站别', orient='right'),
+                                          scale=alt.Scale(scheme='category20')),
+                            tooltip=[
+                                alt.Tooltip('站别:N', title='站别'),
+                                alt.Tooltip('数量:Q', title='数量'),
+                                alt.Tooltip('占比:Q', title='占比', format='.1%')
+                            ]
+                        ).properties(
+                            height=300,
+                            title='工程分析站别占比'
+                        )
+                        st.altair_chart(pie_chart, use_container_width=True)
+            
             st.markdown("---")
             
-            # 选项卡
-            tab1, tab2 = st.tabs(["📈 甘特图", "📋 进度表格"])
+            # 甘特图按钮
+            col_gantt, col_space = st.columns([1, 5])
+            with col_gantt:
+                show_gantt = st.button("📈 显示甘特图", use_container_width=True, key="show_gantt_chart")
             
-            with tab1:
+            if show_gantt or st.session_state.get("gantt_visible", False):
+                st.session_state["gantt_visible"] = True
                 with st.spinner("正在生成甘特图..."):
                     chart = create_gantt_chart(filtered_progress_df)
                     st.altair_chart(chart, use_container_width=True)
-                        
-            with tab2:
-                table_df = create_progress_table(filtered_progress_df)
                 
-                # 使用样式高亮工程分析行
-                def highlight_engineering(row):
-                    if row['是否工程分析'] == '是':
-                        return ['background-color: #ffcccc'] * len(row)
-                    return [''] * len(row)
-                
-                styled_df = table_df.style.apply(highlight_engineering, axis=1)
-                st.dataframe(
-                    styled_df,
-                    width='stretch',
-                    height=400
-                )
-                
-                # 下载按钮 - 使用Excel格式避免编码问题
-                buffer = io.BytesIO()
-                try:
-                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                        table_df.to_excel(writer, index=False, sheet_name='进度表')
-                except ImportError:
-                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                        table_df.to_excel(writer, index=False, sheet_name='进度表')
-                buffer.seek(0)
-                
-                st.download_button(
-                    label="📥 下载进度表格 (Excel)",
-                    data=buffer,
-                    file_name=f"壳体进度_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                # 添加隐藏按钮
+                if st.button("❌ 隐藏甘特图", key="hide_gantt_chart"):
+                    st.session_state["gantt_visible"] = False
+                    st.rerun()
+            
+            st.markdown("---")
+            st.markdown("### 📋 进度表格")
+            
+            # 进度表格内容
+            table_df = create_progress_table(filtered_progress_df)
+            
+            # 使用样式高亮工程分析行
+            def highlight_engineering(row):
+                if row['是否工程分析'] == '是':
+                    return ['background-color: #ffcccc'] * len(row)
+                return [''] * len(row)
+            
+            styled_df = table_df.style.apply(highlight_engineering, axis=1)
+            st.dataframe(
+                styled_df,
+                width='stretch',
+                height=400
+            )
+            
+            # 下载按钮 - 使用Excel格式避免编码问题
+            buffer = io.BytesIO()
+            try:
+                with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                    table_df.to_excel(writer, index=False, sheet_name='进度表')
+            except ImportError:
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    table_df.to_excel(writer, index=False, sheet_name='进度表')
+            buffer.seek(0)
+            
+            st.download_button(
+                label="📥 下载进度表格 (Excel)",
+                data=buffer,
+                file_name=f"壳体进度_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
 

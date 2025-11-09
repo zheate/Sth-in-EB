@@ -43,6 +43,7 @@ NUMERIC_CANDIDATES: List[str] = SUMMARY_COLUMNS + [
     "峰值波长",
     "中心波长",
     "光谱全高宽",
+    "NA数值孔径",
 ]
 
 MAX_AUTOMATIC_SELECTION = 80
@@ -287,6 +288,13 @@ def render_overview_table(filtered: pd.DataFrame) -> None:
         for metric in SUMMARY_COLUMNS:
             if metric in sub.columns and sub[metric].notna().any():
                 row[f"{metric}均值"] = sub[metric].mean()
+        
+        # 添加NA和NA数值孔径列
+        if "NA" in sub.columns and sub["NA"].notna().any():
+            row["NA"] = sub["NA"].mean()
+        if "NA数值孔径" in sub.columns and sub["NA数值孔径"].notna().any():
+            row["NA数值孔径"] = sub["NA数值孔径"].mean()
+        
         rows.append(row)
 
     overview = pd.DataFrame(rows)
@@ -299,6 +307,54 @@ def render_overview_table(filtered: pd.DataFrame) -> None:
         use_container_width=True,
         hide_index=True,
     )
+
+
+def render_station_trend_chart(filtered: pd.DataFrame) -> None:
+    """渲染站别功率变化趋势图"""
+    if "功率" not in filtered.columns:
+        st.info("缺少功率数据，无法生成趋势图")
+        return
+    
+    # 准备趋势数据 - 统计各站别的功率均值
+    station_power = []
+    for station in STATION_ORDER:
+        sub = filtered[filtered["标准测试站别"] == station]
+        if not sub.empty and "功率" in sub.columns:
+            power_data = sub["功率"].dropna()
+            if not power_data.empty:
+                station_power.append({
+                    "站别": station,
+                    "功率均值": power_data.mean(),
+                    "样本数": len(power_data)
+                })
+    
+    if not station_power:
+        st.info("没有有效的功率数据")
+        return
+    
+    power_df = pd.DataFrame(station_power)
+    
+    # 创建点线图
+    line_chart = (
+        alt.Chart(power_df)
+        .mark_line(point=alt.OverlayMarkDef(size=100, filled=True))
+        .encode(
+            x=alt.X("站别:N", title="测试站别", sort=STATION_ORDER, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("功率均值:Q", title="功率均值 (W)", scale=alt.Scale(zero=False)),
+            color=alt.value("#1f77b4"),
+            tooltip=[
+                alt.Tooltip("站别:N", title="站别"),
+                alt.Tooltip("功率均值:Q", title="功率均值", format=".3f"),
+                alt.Tooltip("样本数:Q", title="样本数")
+            ]
+        )
+        .properties(
+            height=400,
+            title="各站别功率均值对比"
+        )
+    )
+    
+    st.altair_chart(line_chart, use_container_width=True)
 
 
 alt.data_transformers.disable_max_rows()
@@ -571,5 +627,9 @@ with col_right:
 
 st.markdown("### 站别概览")
 render_overview_table(filtered_df)
+
+st.markdown("---")
+st.markdown("### 📈 站别变化趋势")
+render_station_trend_chart(filtered_df)
 
 

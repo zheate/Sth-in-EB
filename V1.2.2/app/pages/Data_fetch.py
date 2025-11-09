@@ -2551,11 +2551,12 @@ def main() -> None:
             st.markdown("---")
             st.markdown('<div id="multi_station"></div>', unsafe_allow_html=True)
             trigger_scroll_if_needed("multi_station")
-            st.subheader("📊 多站别分析")
+            st.subheader("📊 多壳体分析")
+            
             # 获取所有可用的壳体
             available_shells = sorted(list(set([shell_id for (shell_id, _) in st.session_state.lvi_plot_sources.keys()])))
             
-            # 所有壳体平均值变化分析 - 独立显示，不依赖下拉菜单
+            # 所有壳体平均值变化分析
             if len(available_shells) > 1:
                 st.markdown("**📊 所有壳体平均值变化分析**")
                 
@@ -2664,20 +2665,45 @@ def main() -> None:
                                 avg_change_df[col] = avg_change_df[col].apply(
                                     lambda x: 0.0 if pd.notna(x) and abs(round(x, 3)) < 0.001 else round(x, 3) if pd.notna(x) else x
                                 )
-
-                        column_config = {
-                            col: st.column_config.NumberColumn(
-                                label=col,
-                                format='%.3f'
-                            )
-                            for col in avg_numeric_cols
-                        }
-                        st.dataframe(
-                            avg_change_df,
-                            width='stretch',
-                            hide_index=True,
-                            column_config=column_config
-                        )
+                        
+                        # 使用 st.metric 展示变化趋势
+                        for idx, row in avg_change_df.iterrows():
+                            st.markdown(f"**{row['变化']}**")
+                            
+                            # 创建指标卡片
+                            cols = st.columns(len(avg_numeric_cols))
+                            for i, col_name in enumerate(avg_numeric_cols):
+                                if col_name in row and pd.notna(row[col_name]):
+                                    value = row[col_name]
+                                    
+                                    # 使用 st.metric 显示
+                                    with cols[i]:
+                                        # 提取单位
+                                        if "(W)" in col_name:
+                                            unit = "W"
+                                            label = col_name.replace("(W)", "").strip()
+                                        elif "(%)" in col_name:
+                                            unit = "%"
+                                            label = col_name.replace("(%)", "").strip()
+                                        elif "(V)" in col_name:
+                                            unit = "V"
+                                            label = col_name.replace("(V)", "").strip()
+                                        elif "(nm)" in col_name:
+                                            unit = "nm"
+                                            label = col_name.replace("(nm)", "").strip()
+                                        else:
+                                            unit = ""
+                                            label = col_name
+                                        
+                                        # st.metric 会自动显示箭头和颜色
+                                        st.metric(
+                                            label=label,
+                                            value=f"{abs(value):.3f}{unit}",
+                                            delta=f"{value:+.3f}{unit}",
+                                            delta_color="normal"  # 正值红色上箭头，负值绿色下箭头
+                                        )
+                            
+                            st.markdown("---")
                 
                 st.markdown("---")
             
@@ -2752,12 +2778,8 @@ def main() -> None:
                         overall_summary[["均值", "中位数", "标准差", "最小值", "最大值"]] = overall_summary[["均值", "中位数", "标准差", "最小值", "最大值"]].round(3)
                         overall_summary.index.name = "指标"
 
-                        def highlight_stats(s):
-                            if s.name in ["最小值", "最大值"]:
-                                return ['background-color: #ffe6e6' if s.name == "最小值" else 'background-color: #e6ffe6' for _ in s]
-                            return ['' for _ in s]
-
-                        styled_summary = overall_summary.style.apply(highlight_stats, axis=0).format({
+                        # 极简风格：不使用颜色高亮
+                        styled_summary = overall_summary.style.format({
                             "均值": "{:.3f}",
                             "中位数": "{:.3f}",
                             "标准差": "{:.3f}",
@@ -2784,22 +2806,8 @@ def main() -> None:
 
                             st.markdown(f"#### 🔹 {metric}")
 
-                            def highlight_max_min(s):
-                                if s.name in ["均值", "中位数", "最小值", "最大值"]:
-                                    is_max = s == s.max()
-                                    is_min = s == s.min()
-                                    colors = []
-                                    for val, mx, mn in zip(s, is_max, is_min):
-                                        if mx and s.name != "最小值":
-                                            colors.append('background-color: #90EE90; font-weight: bold')
-                                        elif mn and s.name != "最大值":
-                                            colors.append('background-color: #FFB6C1; font-weight: bold')
-                                        else:
-                                            colors.append('')
-                                    return colors
-                                return ['' for _ in s]
-
-                            styled_metric = metric_data.style.apply(highlight_max_min, axis=0).format({
+                            # 极简风格：不使用颜色高亮
+                            styled_metric = metric_data.style.format({
                                 "均值": "{:.3f}",
                                 "中位数": "{:.3f}",
                                 "标准差": "{:.3f}",
