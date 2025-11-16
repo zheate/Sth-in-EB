@@ -360,7 +360,7 @@ def render_station_trend_chart(filtered: pd.DataFrame) -> None:
 alt.data_transformers.disable_max_rows()
 st.set_page_config(page_title="常用测试数据分析", page_icon="📈", layout="wide")
 
-st.title("📈 常用测试数据分析")
+st.title("常用测试数据分析")
 st.markdown("上传常用测试数据报表，查看五个测试站别的指标表现。")
 
 if "test_analysis_df" not in st.session_state:

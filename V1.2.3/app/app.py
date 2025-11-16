@@ -98,7 +98,7 @@ def render_home_page() -> None:
         height=0,
     )
 
-    st.title("🔬 ZH’s 妙妙屋")
+    st.title("🔬 ZH's 妙妙屋")
 
     st.markdown("### 🛠 系统状态")
 
@@ -159,16 +159,23 @@ def render_home_page() -> None:
     st.dataframe(page_overview, hide_index=True, use_container_width=True, height=220)
 
 def main() -> None:
-    pages = [
-        st.Page(render_home_page, title=APP_TITLE, icon=APP_ICON, default=True),
-        st.Page(PAGES_ROOT / "Data_fetch.py", title="数据提取", icon="📥"),
-        st.Page(PAGES_ROOT / "Progress.py", title="进度追踪", icon="📈"),
-        st.Page(PAGES_ROOT / "TestAnalysis.py", title="测试数据分析", icon="📊"),
-        st.Page(PAGES_ROOT / "COS_Filter.py", title="COS筛选", icon="🔍"),
-        st.Page(PAGES_ROOT / "Optical_Calculators.py", title="光学计算器", icon="🔬"),
-    ]
+    pages = {
+        "主页": [
+            st.Page(render_home_page, title=APP_TITLE, icon=APP_ICON, default=True),
+        ],
+        "数据分析": [
+            st.Page(PAGES_ROOT / "Data_fetch.py", title="数据提取", icon="📥"),
+            st.Page(PAGES_ROOT / "Progress.py", title="进度追踪", icon="📈"),
+            st.Page(PAGES_ROOT / "TestAnalysis.py", title="测试数据分析", icon="📊"),
+            st.Page(PAGES_ROOT / "COS_Filter.py", title="COS筛选", icon="🔍"),
+        ],
+        "工具": [
+            st.Page(PAGES_ROOT / "NA_Calculator.py", title="NA计算器", icon="🎯"),
+            st.Page(PAGES_ROOT / "BFD_Calculator.py", title="BFD计算器", icon="🔧"),
+        ],
+    }
 
-    page = st.navigation(pages, position="sidebar", expanded=True)
+    page = st.navigation(pages, position="sidebar")
     page.run()
 
 

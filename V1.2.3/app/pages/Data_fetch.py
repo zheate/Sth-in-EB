@@ -1967,7 +1967,7 @@ def main() -> None:
                         st.metric("站别数", result_df[TEST_TYPE_COLUMN].nunique(), label_visibility="visible")
                 st.markdown("---")
         
-    st.title("光耦数据提取工具")
+    st.title("壳体测试数据查询")
     st.caption("支持输入多个壳体号，按测试类型与测试文件批量提取数据。")
     st.markdown('<div id="input"></div>', unsafe_allow_html=True)
     with st.form("input_form"):

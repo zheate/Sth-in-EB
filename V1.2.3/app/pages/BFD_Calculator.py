@@ -394,73 +394,9 @@ def main():
             import pandas as pd
             st.dataframe(pd.DataFrame(symbols_data), use_container_width=True, hide_index=True)
     
-    # 精度设置和端帽设置并排
-    settings_col1, settings_col2 = st.columns([1, 2])
-    
-    with settings_col1:
-        st.markdown("### ⚙️ 计算设置")
-        precision = st.slider("计算精度（小数位数）", 1, 6, st.session_state.inputs["precision"], key="precision_slider")
-        st.session_state.inputs["precision"] = precision
-    
-    with settings_col2:
-        st.markdown("### 🔬 端帽设置")
-        endcap_sub_col1, endcap_sub_col2, endcap_sub_col3 = st.columns([1, 1.5, 1.5])
-        
-        with endcap_sub_col1:
-            has_endcap = st.checkbox(
-                "包含端帽",
-                value=st.session_state.inputs.get("has_endcap", False),
-                key="bfd_has_endcap_checkbox",
-                help="勾选此项以考虑端帽对焦距的影响"
-            )
-            st.session_state.inputs["has_endcap"] = has_endcap
-        
-        endcap_material = None
-        endcap_n = None
-        endcap_length_val = None
-        
-        if has_endcap:
-            with endcap_sub_col2:
-                # 端帽材料选择
-                endcap_materials_list = sorted(st.session_state.materials.keys())
-                current_endcap_material = st.session_state.inputs.get("endcap_material", "SK1310_976")
-                
-                if current_endcap_material not in endcap_materials_list:
-                    if "SK1310_976" in endcap_materials_list:
-                        current_endcap_material = "SK1310_976"
-                    else:
-                        current_endcap_material = endcap_materials_list[0] if endcap_materials_list else "air"
-                
-                endcap_material = st.selectbox(
-                    "端帽材料",
-                    options=endcap_materials_list,
-                    index=endcap_materials_list.index(current_endcap_material) if current_endcap_material in endcap_materials_list else 0,
-                    key="bfd_endcap_material_select",
-                    help="选择端帽材料"
-                )
-                st.session_state.inputs["endcap_material"] = endcap_material
-                
-                # 获取端帽折射率
-                endcap_n = float(st.session_state.materials.get(endcap_material, 1.45))
-                st.markdown(f"**折射率:** {endcap_n}")
-            
-            with endcap_sub_col3:
-                existing_length = st.session_state.inputs.get("endcap_length") or "5.0"
-                endcap_length = st.text_input(
-                    "端帽长度 [mm]",
-                    value=existing_length,
-                    key="bfd_endcap_length_input",
-                    help="输入端帽的长度"
-                )
-                if not endcap_length.strip():
-                    endcap_length = "5.0"
-                st.session_state.inputs["endcap_length"] = endcap_length
-                
-                try:
-                    endcap_length_val = float(endcap_length)
-                except ValueError:
-                    endcap_length_val = 5.0
-                    st.session_state.inputs["endcap_length"] = "5.0"
+    # 固定精度为3位小数
+    precision = 3
+    st.session_state.inputs["precision"] = precision
     
     st.markdown("---")
     
@@ -581,8 +517,74 @@ def main():
     
     st.markdown("---")
     
-    # 计算按钮
-    if st.button("🧮 计算 BFD", type="primary", key="bfd_calculate"):
+    # 计算按钮和端帽设置并排
+    calc_col1, calc_col2 = st.columns([1, 3])
+    
+    with calc_col1:
+        calculate_button = st.button("🧮 计算 BFD", type="primary", key="bfd_calculate", use_container_width=True)
+    
+    with calc_col2:
+        endcap_sub_col1, endcap_sub_col2, endcap_sub_col3 = st.columns([1, 1.5, 1.5])
+        
+        with endcap_sub_col1:
+            has_endcap = st.checkbox(
+                "包含端帽",
+                value=st.session_state.inputs.get("has_endcap", False),
+                key="bfd_has_endcap_checkbox",
+                help="勾选此项以考虑端帽对焦距的影响"
+            )
+            st.session_state.inputs["has_endcap"] = has_endcap
+        
+        endcap_material = None
+        endcap_n = None
+        endcap_length_val = None
+        
+        if has_endcap:
+            with endcap_sub_col2:
+                # 端帽材料选择
+                endcap_materials_list = sorted(st.session_state.materials.keys())
+                current_endcap_material = st.session_state.inputs.get("endcap_material", "SK1310_976")
+                
+                if current_endcap_material not in endcap_materials_list:
+                    if "SK1310_976" in endcap_materials_list:
+                        current_endcap_material = "SK1310_976"
+                    else:
+                        current_endcap_material = endcap_materials_list[0] if endcap_materials_list else "air"
+                
+                # 获取端帽折射率
+                endcap_n = float(st.session_state.materials.get(current_endcap_material, 1.45))
+                
+                endcap_material = st.selectbox(
+                    "端帽材料",
+                    options=endcap_materials_list,
+                    index=endcap_materials_list.index(current_endcap_material) if current_endcap_material in endcap_materials_list else 0,
+                    key="bfd_endcap_material_select",
+                    help=f"选择端帽材料 (当前折射率: {endcap_n})"
+                )
+                st.session_state.inputs["endcap_material"] = endcap_material
+                
+                # 更新折射率
+                endcap_n = float(st.session_state.materials.get(endcap_material, 1.45))
+            
+            with endcap_sub_col3:
+                existing_length = st.session_state.inputs.get("endcap_length") or "5.0"
+                endcap_length = st.text_input(
+                    "端帽长度 [mm]",
+                    value=existing_length,
+                    key="bfd_endcap_length_input",
+                    help="输入端帽的长度"
+                )
+                if not endcap_length.strip():
+                    endcap_length = "5.0"
+                st.session_state.inputs["endcap_length"] = endcap_length
+                
+                try:
+                    endcap_length_val = float(endcap_length)
+                except ValueError:
+                    endcap_length_val = 5.0
+                    st.session_state.inputs["endcap_length"] = "5.0"
+    
+    if calculate_button:
         # 验证输入
         errors = []
         

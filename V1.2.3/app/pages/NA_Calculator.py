@@ -795,6 +795,27 @@ def main():
                 if key in ["endcap_air_distance_input", "endcap_aperture_radius_input", "endcap_na_input", "endcap_length_input"]:
                     st.session_state[key] = value
         
+        # 显示端帽光阑示意图（居中）
+        try:
+            from pathlib import Path
+            import base64
+            endcap_image_path = Path("app/data/endcap.png")
+            if endcap_image_path.exists():
+                # 使用HTML居中图片
+                with open(endcap_image_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode()
+                st.markdown(
+                    f"""
+                    <div style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+                        <img src="data:image/png;base64,{img_data}" width="800" />
+                        <p style="text-align: center; color: #888; font-size: 14px; margin-top: 8px;">端帽光阑示意图</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+        except Exception:
+            pass
+        
         st.markdown("---")
         st.markdown("### 🔍 端帽光阑计算")
         st.markdown("根据已知参数计算未知参数（留空字段将被计算，默认计算光阑半径）")
@@ -804,6 +825,7 @@ def main():
         with col1:
             endcap_na = st.text_input(
                 "所需 NA 值",
+                
                 key="endcap_na_input",
                 help="输入NA值，或留空由其他参数自动计算",
                 on_change=_on_input_change,
@@ -832,14 +854,12 @@ def main():
             endcap_refraction_value = st.session_state.materials.get(endcap_material, 1.55)
             endcap_refraction_display = _format_index(endcap_refraction_value)
             
-            # 使用与输入框相同的标签样式
-            st.markdown(
-                f'<label style="font-size: 0.875rem; font-weight: 400; margin-bottom: 0.25rem;">端帽折射率</label>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f'<div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; color: #666; font-size: 1rem;">{endcap_refraction_display}</div>',
-                unsafe_allow_html=True,
+            # 使用禁用的文本输入框显示折射率，保持对齐
+            st.text_input(
+                "端帽折射率",
+                value=endcap_refraction_display,
+                disabled=True,
+                key="endcap_refraction_display"
             )
         
         with col2:
@@ -1142,18 +1162,25 @@ def main():
             current_air_dist = st.session_state.endcap_inputs.get("air_distance", "")
             current_aperture = st.session_state.endcap_inputs.get("aperture_radius", "")
             
-            st.markdown(f"""
-            - **所需 NA 值:** {current_na}
-            - **端帽材料:** {current_material}
-            - **端帽折射率:** {endcap_refraction_display}
-            - **端帽长度:** {current_length} mm
-            - **空气传播距离:** {current_air_dist} mm
-            - **光阑半径:** {current_aperture} mm
-            - **端帽入射角:** {result_data.get('endcap_angle', '')}°
-            - **端帽折射角:** {result_data.get('endcap_refr_angle', '')}°
-            - **端帽上光斑半径:** {result_data.get('endcap_radius', '')} mm
-            - **空气折射角:** {result_data.get('air_refr_angle', '')}°
-            """)
+            detail_col1, detail_col2 = st.columns(2)
+            
+            with detail_col1:
+                st.markdown(f"""
+                - **所需 NA 值:** {current_na}
+                - **端帽材料:** {current_material}
+                - **端帽折射率:** {endcap_refraction_display}
+                - **端帽长度:** {current_length} mm
+                - **空气传播距离:** {current_air_dist} mm
+                """)
+            
+            with detail_col2:
+                st.markdown(f"""
+                - **光阑半径:** {current_aperture} mm
+                - **端帽入射角:** {result_data.get('endcap_angle', '')}°
+                - **端帽折射角:** {result_data.get('endcap_refr_angle', '')}°
+                - **端帽上光斑半径:** {result_data.get('endcap_radius', '')} mm
+                - **空气折射角:** {result_data.get('air_refr_angle', '')}°
+                """)
         
     
     else:

@@ -619,7 +619,7 @@ st.set_page_config(page_title="模块进度", page_icon="📊", layout="wide")
 
 
 
-st.title("📊 模块WIP进度")
+st.title("模块WIP进度")
 
 
 
