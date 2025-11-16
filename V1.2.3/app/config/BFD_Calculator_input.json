@@ -1,0 +1,16 @@
+{
+    "material_fast": "H-ZF52-976",
+    "re_index_fast": 1.8145,
+    "foc_curvature": "12.87",
+    "foc_efl": "15.8",
+    "foc_thickness": "3.2",
+    "material_slow": "H-ZF52-976",
+    "re_index_slow": 1.8145,
+    "soc_curvature": "4.89",
+    "soc_efl": "6",
+    "soc_thickness": "3.2",
+    "precision": 2,
+    "has_endcap": false,
+    "endcap_material": "",
+    "endcap_length": ""
+}

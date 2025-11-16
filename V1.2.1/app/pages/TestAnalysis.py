@@ -1,4 +1,4 @@
-﻿# title: 测试数据分析
+# title: 测试数据分析
 
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +11,7 @@ import sys
 import altair as alt
 import pandas as pd
 import streamlit as st
+from utils.compat import inject_structured_clone_polyfill
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 if str(APP_ROOT) not in sys.path:
@@ -38,12 +39,12 @@ DATA_SOURCE_OPTIONS = [FOLDER_SOURCE_LABEL, UPLOAD_SOURCE_LABEL]
 
 STATION_ORDER: List[str] = ["耦合测试", "Pre测试", "低温储存后测试", "Post测试", "封盖测试"]
 
-SUMMARY_COLUMNS: List[str] = ["最大效率", "功率", "电压", "最大电流", "热阻", "NA"]
+SUMMARY_COLUMNS: List[str] = ["最大效率", "功率", "电压", "最大电流", "热阻"]
 NUMERIC_CANDIDATES: List[str] = SUMMARY_COLUMNS + [
     "峰值波长",
     "中心波长",
     "光谱全高宽",
-    "NA数值孔径",
+    "NA",
 ]
 
 MAX_AUTOMATIC_SELECTION = 80
@@ -257,6 +258,40 @@ def render_station_tab(station: str, station_df: pd.DataFrame) -> None:
         st.info(f"暂无 {station} 的数据。")
         return
 
+    st.subheader(f"{station} 数据概览")
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.metric("记录数", len(station_df))
+    with col_b:
+        if "最大效率" in station_df.columns and station_df["最大效率"].notna().any():
+            st.metric("平均最大效率", f"{station_df['最大效率'].mean():.3f}")
+        else:
+            st.metric("平均最大效率", "—")
+    with col_c:
+        if "热阻" in station_df.columns and station_df["热阻"].notna().any():
+            st.metric("平均热阻", f"{station_df['热阻'].mean():.3f}")
+        else:
+            st.metric("平均热阻", "—")
+
+    stats_columns = [col for col in SUMMARY_COLUMNS if col in station_df.columns]
+    if stats_columns:
+        summary = station_df[stats_columns].agg(["count", "mean", "std", "min", "max"]).T
+        summary.rename(
+            columns={"count": "数量", "mean": "平均值", "std": "标准差", "min": "最小值", "max": "最大值"},
+            inplace=True,
+        )
+        summary_display = summary.copy()
+        numeric_cols = [col for col in summary_display.columns if col != "数量"]
+        if numeric_cols:
+            summary_display[numeric_cols] = summary_display[numeric_cols].apply(lambda col: col.round(3))
+        summary_display["数量"] = summary_display["数量"].astype(int)
+        st.dataframe(
+            summary_display.reset_index().rename(columns={"index": "指标"}),
+            width='stretch',
+            hide_index=True,
+        )
+
     base_columns = ["壳体号"]
     for optional in ["规格类型", "生产订单", "测试时间"]:
         if optional in station_df.columns:
@@ -268,8 +303,8 @@ def render_station_tab(station: str, station_df: pd.DataFrame) -> None:
         deduped = deduped.sort_values("测试时间")
     else:
         deduped = deduped.sort_values("壳体号")
-    with st.expander("查看详细记录", expanded=True):
-        preview = deduped.reset_index(drop=True)
+    with st.expander("查看详细记录（最多前 200 行）", expanded=False):
+        preview = deduped.reset_index(drop=True).head(200)
         st.dataframe(
             preview,
             width='stretch',
@@ -288,13 +323,8 @@ def render_overview_table(filtered: pd.DataFrame) -> None:
         for metric in SUMMARY_COLUMNS:
             if metric in sub.columns and sub[metric].notna().any():
                 row[f"{metric}均值"] = sub[metric].mean()
-        
-        # 添加NA和NA数值孔径列
         if "NA" in sub.columns and sub["NA"].notna().any():
-            row["NA"] = sub["NA"].mean()
-        if "NA数值孔径" in sub.columns and sub["NA数值孔径"].notna().any():
-            row["NA数值孔径"] = sub["NA数值孔径"].mean()
-        
+            row["NA均值"] = sub["NA"].mean()
         rows.append(row)
 
     overview = pd.DataFrame(rows)
@@ -309,56 +339,9 @@ def render_overview_table(filtered: pd.DataFrame) -> None:
     )
 
 
-def render_station_trend_chart(filtered: pd.DataFrame) -> None:
-    """渲染站别功率变化趋势图"""
-    if "功率" not in filtered.columns:
-        st.info("缺少功率数据，无法生成趋势图")
-        return
-    
-    # 准备趋势数据 - 统计各站别的功率均值
-    station_power = []
-    for station in STATION_ORDER:
-        sub = filtered[filtered["标准测试站别"] == station]
-        if not sub.empty and "功率" in sub.columns:
-            power_data = sub["功率"].dropna()
-            if not power_data.empty:
-                station_power.append({
-                    "站别": station,
-                    "功率均值": power_data.mean(),
-                    "样本数": len(power_data)
-                })
-    
-    if not station_power:
-        st.info("没有有效的功率数据")
-        return
-    
-    power_df = pd.DataFrame(station_power)
-    
-    # 创建点线图
-    line_chart = (
-        alt.Chart(power_df)
-        .mark_line(point=alt.OverlayMarkDef(size=100, filled=True))
-        .encode(
-            x=alt.X("站别:N", title="测试站别", sort=STATION_ORDER, axis=alt.Axis(labelAngle=0)),
-            y=alt.Y("功率均值:Q", title="功率均值 (W)", scale=alt.Scale(zero=False)),
-            color=alt.value("#1f77b4"),
-            tooltip=[
-                alt.Tooltip("站别:N", title="站别"),
-                alt.Tooltip("功率均值:Q", title="功率均值", format=".3f"),
-                alt.Tooltip("样本数:Q", title="样本数")
-            ]
-        )
-        .properties(
-            height=400,
-            title="各站别功率均值对比"
-        )
-    )
-    
-    st.altair_chart(line_chart, use_container_width=True)
-
-
 alt.data_transformers.disable_max_rows()
 st.set_page_config(page_title="常用测试数据分析", page_icon="📈", layout="wide")
+inject_structured_clone_polyfill()
 
 st.title("📈 常用测试数据分析")
 st.markdown("上传常用测试数据报表，查看五个测试站别的指标表现。")
@@ -484,7 +467,8 @@ else:
                                     st.success(
                                         f"文件 {selected_path.name} 加载成功，共 {len(prepared)} 条记录。"
                                     )
-                                    st.rerun()
+                                    if auto_load:
+                                        st.rerun()
                 else:
                     st.warning(f"`{search_path}` 中未找到 Excel 报表文件。")
             else:
@@ -603,8 +587,8 @@ if filtered_df.empty:
 
 st.caption('筛选结果已缓存，可在“数据分析”页统一保存。')
 
-with st.expander("查看筛选结果预览", expanded=True):
-    preview = filtered_df
+with st.expander("查看筛选结果预览（最多前 200 行）", expanded=False):
+    preview = filtered_df.head(200)
     st.dataframe(
         preview,
         width='stretch',
@@ -627,8 +611,25 @@ with col_right:
 st.markdown("### 站别概览")
 render_overview_table(filtered_df)
 
-st.markdown("---")
-st.markdown("### 📈 站别变化趋势")
-render_station_trend_chart(filtered_df)
+csv_bytes = filtered_df.to_csv(index=False).encode("utf-8-sig")
+st.download_button(
+    "📥 下载筛选后的数据（CSV）",
+    data=csv_bytes,
+    file_name=f"测试数据筛选_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+    mime="text/csv",
+)
 
-
+if "标准测试站别" not in filtered_df.columns:
+    st.warning("数据中缺少“标准测试站别”字段，无法展示站点详情。")
+else:
+    available_stations = [
+        station
+        for station in STATION_ORDER
+        if station in filtered_df["标准测试站别"].unique()
+    ]
+    if not available_stations:
+        st.warning("筛选结果中没有符合的站别数据。")
+    else:
+        selected_station = st.selectbox("选择测试站别查看详情", available_stations, index=0)
+        station_data = filtered_df[filtered_df["标准测试站别"] == selected_station]
+        render_station_tab(selected_station, station_data)

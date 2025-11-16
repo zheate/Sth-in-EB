@@ -50,6 +50,11 @@ parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 from config import DATA_FETCH_DEFAULT_FOLDER
+from utils.compat import inject_structured_clone_polyfill
+from utils.shared_state import (
+    get_test_analysis_filtered,
+    store_data_fetch_result,
+)
 
 PRIMARY_RED = "red"
 PRIMARY_DARK = "#262626"
@@ -125,16 +130,6 @@ OUTPUT_COLUMNS = [
     "波长lambda",
     "波长shift",
 ]
-
-
-def _exclude_zero_current(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Drop rows where测试电流为0A，避免影响多壳体分析图表。
-    """
-    if CURRENT_COLUMN not in df.columns or df.empty:
-        return df
-    numeric_current = pd.to_numeric(df[CURRENT_COLUMN], errors="coerce")
-    return df.loc[numeric_current.abs() > CURRENT_TOLERANCE]
 
 (
     SHELL_COLUMN,
@@ -248,35 +243,21 @@ def plot_multi_shell_prediction(
     shell_points = []  # 用于绘制各壳体散点
     
     for shell_id, df in series_data:
-        numeric = (
-            df[[CURRENT_COLUMN, metric_column]]
-            .apply(pd.to_numeric, errors="coerce")
-            .dropna(subset=[CURRENT_COLUMN, metric_column])
-        )
-        numeric = _exclude_zero_current(numeric)
-        if numeric.empty:
-            continue
-
-        x_vals = numeric[CURRENT_COLUMN].to_numpy(dtype=float)
-        y_vals = numeric[metric_column].to_numpy(dtype=float)
-        all_x.extend(x_vals.tolist())
-        all_y.extend(y_vals.tolist())
-
+        x_vals = df[CURRENT_COLUMN].astype(float).values
+        y_vals = df[metric_column].astype(float).values
+        all_x.extend(x_vals)
+        all_y.extend(y_vals)
+        
         # 保存各壳体数据用于散点图
         for x, y in zip(x_vals, y_vals):
-            shell_points.append(
-                {
-                    "current": x,
-                    "value": y,
-                    "shell": shell_id,
-                }
-            )
+            shell_points.append({
+                'current': x,
+                'value': y,
+                'shell': shell_id
+            })
     
-    all_x = np.array(all_x, dtype=float)
-    all_y = np.array(all_y, dtype=float)
-
-    if all_x.size == 0 or all_y.size == 0 or not shell_points:
-        return None
+    all_x = np.array(all_x)
+    all_y = np.array(all_y)
     
     # 效率数据使用专业模型，其他数据使用多项式
     if metric_column == EFFICIENCY_COLUMN:
@@ -489,7 +470,6 @@ def _prepare_metric_series(df: pd.DataFrame, metric_column: str) -> pd.DataFrame
         .apply(pd.to_numeric, errors="coerce")
         .dropna(subset=[CURRENT_COLUMN, metric_column])
     )
-    numeric = _exclude_zero_current(numeric)
     if numeric.empty:
         return numeric
 
@@ -539,7 +519,6 @@ def compute_power_predictions(
             pd.to_numeric(df.get(CURRENT_COLUMN, pd.Series(dtype=float)), errors="coerce")
             .dropna()
         )
-        current_values = current_values[current_values.abs() > CURRENT_TOLERANCE]
         if current_values.empty:
             continue
 
@@ -596,7 +575,6 @@ def build_multi_shell_chart(
         if numeric is None or numeric.empty:
             continue
         numeric_clean = numeric.dropna(subset=[CURRENT_COLUMN, metric_column]).copy()
-        numeric_clean = _exclude_zero_current(numeric_clean)
         if numeric_clean.empty:
             continue
         numeric_clean[CURRENT_COLUMN] = pd.to_numeric(
@@ -1729,13 +1707,6 @@ def extract_rth_data(file_path: Path, current_points: List[float], *, mtime: Opt
     effective_mtime = file_path.stat().st_mtime if mtime is None else mtime
     return _extract_rth_data_cached(str(file_path), effective_mtime, cached_points)
 
-
-def clear_extraction_caches() -> None:
-    """清除提取流程使用的缓存，确保后续操作能够强制重新读取文件。"""
-    _extract_generic_excel_cached.clear()
-    _extract_lvi_data_cached.clear()
-    _extract_rth_data_cached.clear()
-
 def show_toast(message: str, icon: str = "ℹ️", duration: int = 2000) -> None:
     """显示自定义持续时间的toast消息
     Args:
@@ -1800,35 +1771,9 @@ def render_extraction_results_section(
     with container:
         st.markdown('<div id="results"></div>', unsafe_allow_html=True)
         st.markdown("---")
-        st.subheader("📊 抽取结果概览")
+        st.subheader("📊 抽取数据")
 
-        overview_cols = st.columns(3)
-        shell_series = (
-            result_df[SHELL_COLUMN]
-            if SHELL_COLUMN in result_df.columns
-            else pd.Series(dtype=str)
-        )
-        test_series = (
-            result_df[TEST_TYPE_COLUMN]
-            if TEST_TYPE_COLUMN in result_df.columns
-            else pd.Series(dtype=str)
-        )
-        with overview_cols[0]:
-            st.metric("记录数", len(result_df))
-        with overview_cols[1]:
-            st.metric("壳体数量", int(shell_series.nunique()))
-        with overview_cols[2]:
-            st.metric("站别数量", int(test_series.nunique()))
-
-        with st.expander("查看抽取结果明细", expanded=True):
-            row_count = len(result_df)
-            table_height = max(140, min(600, row_count * 34 + 60))
-            st.dataframe(
-                result_df,
-                use_container_width=True,
-                hide_index=False,
-                height=table_height,
-            )
+        st.dataframe(result_df, width='stretch', hide_index=False)
 
         st.markdown("---")
         st.subheader("💾 导出数据")
@@ -1844,7 +1789,7 @@ def render_extraction_results_section(
         with col_btn:
             st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
             download_requested = st.button(
-                "💾 生成下载文件", key="download_btn"
+                "💾 生成下载文件", width='stretch', key="download_btn"
             )
 
         if download_requested:
@@ -1886,6 +1831,7 @@ def render_extraction_results_section(
                 ),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"download_button_{download_counter}",
+                width='stretch',
             )
 
         if errors or infos:
@@ -1910,6 +1856,7 @@ def render_extraction_results_section(
 
 def main() -> None:
     st.set_page_config(page_title="Excel 数据列提取", layout="wide")
+    inject_structured_clone_polyfill()
     # 侧边栏目录
     with st.sidebar:
         st.title("📑 功能导航")
@@ -1969,6 +1916,13 @@ def main() -> None:
         
     st.title("光耦数据提取工具")
     st.caption("支持输入多个壳体号，按测试类型与测试文件批量提取数据。")
+    
+    # 数据收集按钮
+    col_title, col_collect = st.columns([4, 1])
+    with col_collect:
+        if st.button("📦 收集数据", use_container_width=True, help="收集当前页面的壳体数据用于分析"):
+            st.session_state.show_data_collection_dialog = True
+    
     st.markdown('<div id="input"></div>', unsafe_allow_html=True)
     with st.form("input_form"):
         folder_input = st.text_area(
@@ -2004,16 +1958,8 @@ def main() -> None:
 
         )
 
-        submit_col, refresh_col = st.columns(2)
-
-        with submit_col:
-            submitted = st.form_submit_button("🚀 开始抽取", use_container_width=True)
-
-        with refresh_col:
-            force_refresh = st.form_submit_button("♻️ 强制刷新缓存", use_container_width=True)
-
-    action_requested = submitted or force_refresh
-
+        submitted = st.form_submit_button("🚀 开始抽取", width='stretch')
+    
     # 保存分析状态到session state
     if 'pending_scroll_target' not in st.session_state:
         st.session_state.pending_scroll_target = None
@@ -2033,12 +1979,126 @@ def main() -> None:
         st.session_state.download_request_counter = 0
 
     # 重置所有分析状态
-    if action_requested:
+    if submitted:
         st.session_state.show_multi_station = False
         st.session_state.show_boxplot = False
         st.session_state.show_single_analysis = False
         st.session_state.show_multi_power = False
         st.session_state.pending_scroll_target = None
+
+    # 数据收集对话框
+    if st.session_state.get('show_data_collection_dialog', False):
+        # 获取当前页面中的壳体号列表
+        extraction_state = st.session_state.get(EXTRACTION_STATE_KEY)
+        result_df = extraction_state.get("result_df") if extraction_state else None
+        
+        if result_df is not None and not result_df.empty and SHELL_COLUMN in result_df.columns:
+            shell_ids = sorted(result_df[SHELL_COLUMN].unique().tolist())
+            
+            if shell_ids:
+                # 导入数据收集相关模块
+                from utils.data_collector import DataCollector
+                from utils.data_storage import DataStorage
+                from utils.ui_components import render_data_collection_dialog
+                
+                # 获取默认路径和文件名
+                default_path = DataStorage.get_default_save_path()
+                default_filename = DataStorage.generate_default_filename()
+                
+                # 渲染数据收集对话框
+                confirm, save_path, filename, target_current = render_data_collection_dialog(
+                    shell_ids, default_path, default_filename
+                )
+                
+                if confirm:
+                    # 执行数据收集
+                    with st.spinner('正在收集数据...'):
+                        data_sources = st.session_state.get(
+                            'data_sources',
+                            {
+                                'data_fetch': True,
+                                'test_analysis': True,
+                            },
+                        )
+
+                        def _has_available(source_data: dict) -> bool:
+                            return any(
+                                isinstance(entry, dict) and entry.get('data_available')
+                                for entry in source_data.values()
+                            )
+
+                        source_labels = {
+                            'Data_fetch': '数据提取',
+                            'TestAnalysis': '常用测试数据分析',
+                        }
+                        collected_sources = []
+                        missing_sources = []
+
+                        data_fetch_data = {}
+                        if data_sources.get('data_fetch', True):
+                            if result_df is not None and not result_df.empty:
+                                data_fetch_data = DataCollector.collect_from_data_fetch(result_df, shell_ids)
+                                if _has_available(data_fetch_data):
+                                    collected_sources.append('Data_fetch')
+                                else:
+                                    missing_sources.append('Data_fetch')
+                            else:
+                                missing_sources.append('Data_fetch')
+
+                        test_analysis_data = {}
+                    if data_sources.get('test_analysis', True):
+                        shared_test_df = get_test_analysis_filtered()
+                        if shared_test_df is not None and not shared_test_df.empty:
+                            test_analysis_data = DataCollector.collect_from_test_analysis(
+                                shared_test_df,
+                                shell_ids,
+                                target_current,
+                            )
+                            if _has_available(test_analysis_data):
+                                collected_sources.append('TestAnalysis')
+                            else:
+                                missing_sources.append('TestAnalysis')
+                        else:
+                            missing_sources.append('TestAnalysis')
+
+                        if missing_sources:
+                            missing_names = '、'.join(source_labels.get(name, name) for name in missing_sources)
+                            st.warning(f'以下页面未找到匹配数据，将以空白信息保存：{missing_names}')
+
+                        description_sources = '、'.join(
+                            source_labels[name] for name in collected_sources
+                        ) or '当前页面'
+
+                        metadata = {
+                            'version': '1.0',
+                            'created_at': pd.Timestamp.now().isoformat(),
+                            'created_by': 'user',
+                            'description': f'从{description_sources}页面收集的数据',
+                            'target_current': target_current,
+                            'source_pages': collected_sources,
+                            'missing_pages': missing_sources,
+                        }
+
+                        dataset = DataCollector.merge_collected_data(
+                            data_fetch_data,
+                            test_analysis_data,
+                            metadata,
+                        )
+
+                        success, message = DataStorage.save_dataset(dataset, save_path, filename)
+
+                        
+                        if success:
+                            st.success(message)
+                            st.session_state.show_data_collection_dialog = False
+                        else:
+                            st.error(message)
+            else:
+                st.warning("当前页面没有可收集的壳体数据，请先抽取数据。")
+                st.session_state.show_data_collection_dialog = False
+        else:
+            st.warning("当前页面没有可收集的壳体数据，请先抽取数据。")
+            st.session_state.show_data_collection_dialog = False
 
     extraction_results_container = st.container()
 
@@ -2550,12 +2610,11 @@ def main() -> None:
             st.markdown("---")
             st.markdown('<div id="multi_station"></div>', unsafe_allow_html=True)
             trigger_scroll_if_needed("multi_station")
-            st.subheader("📊 多壳体分析")
-            
+            st.subheader("📊 多站别分析")
             # 获取所有可用的壳体
             available_shells = sorted(list(set([shell_id for (shell_id, _) in st.session_state.lvi_plot_sources.keys()])))
             
-            # 所有壳体平均值变化分析
+            # 所有壳体平均值变化分析 - 独立显示，不依赖下拉菜单
             if len(available_shells) > 1:
                 st.markdown("**📊 所有壳体平均值变化分析**")
                 
@@ -2664,45 +2723,20 @@ def main() -> None:
                                 avg_change_df[col] = avg_change_df[col].apply(
                                     lambda x: 0.0 if pd.notna(x) and abs(round(x, 3)) < 0.001 else round(x, 3) if pd.notna(x) else x
                                 )
-                        
-                        # 使用 st.metric 展示变化趋势
-                        for idx, row in avg_change_df.iterrows():
-                            st.markdown(f"**{row['变化']}**")
-                            
-                            # 创建指标卡片
-                            cols = st.columns(len(avg_numeric_cols))
-                            for i, col_name in enumerate(avg_numeric_cols):
-                                if col_name in row and pd.notna(row[col_name]):
-                                    value = row[col_name]
-                                    
-                                    # 使用 st.metric 显示
-                                    with cols[i]:
-                                        # 提取单位
-                                        if "(W)" in col_name:
-                                            unit = "W"
-                                            label = col_name.replace("(W)", "").strip()
-                                        elif "(%)" in col_name:
-                                            unit = "%"
-                                            label = col_name.replace("(%)", "").strip()
-                                        elif "(V)" in col_name:
-                                            unit = "V"
-                                            label = col_name.replace("(V)", "").strip()
-                                        elif "(nm)" in col_name:
-                                            unit = "nm"
-                                            label = col_name.replace("(nm)", "").strip()
-                                        else:
-                                            unit = ""
-                                            label = col_name
-                                        
-                                        # st.metric 会自动显示箭头和颜色
-                                        st.metric(
-                                            label=label,
-                                            value=f"{abs(value):.3f}{unit}",
-                                            delta=f"{value:+.3f}{unit}",
-                                            delta_color="normal"  # 正值红色上箭头，负值绿色下箭头
-                                        )
-                            
-                            st.markdown("---")
+
+                        column_config = {
+                            col: st.column_config.NumberColumn(
+                                label=col,
+                                format='%.3f'
+                            )
+                            for col in avg_numeric_cols
+                        }
+                        st.dataframe(
+                            avg_change_df,
+                            width='stretch',
+                            hide_index=True,
+                            column_config=column_config
+                        )
                 
                 st.markdown("---")
             
@@ -2777,15 +2811,19 @@ def main() -> None:
                         overall_summary[["均值", "中位数", "标准差", "最小值", "最大值"]] = overall_summary[["均值", "中位数", "标准差", "最小值", "最大值"]].round(3)
                         overall_summary.index.name = "指标"
 
-                        # 极简风格：不使用颜色高亮
-                        styled_summary = overall_summary.style.format({
+                        def highlight_stats(s):
+                            if s.name in ["最小值", "最大值"]:
+                                return ['background-color: #ffe6e6' if s.name == "最小值" else 'background-color: #e6ffe6' for _ in s]
+                            return ['' for _ in s]
+
+                        styled_summary = overall_summary.style.apply(highlight_stats, axis=0).format({
                             "均值": "{:.3f}",
                             "中位数": "{:.3f}",
                             "标准差": "{:.3f}",
                             "最小值": "{:.3f}",
                             "最大值": "{:.3f}"
                         })
-                        st.dataframe(styled_summary, use_container_width=True)
+                        st.dataframe(styled_summary, width='stretch')
                 else:
                     st.info("按站别统计缺少有效的数值。")
 
@@ -2805,58 +2843,65 @@ def main() -> None:
 
                             st.markdown(f"#### 🔹 {metric}")
 
-                            # 极简风格：不使用颜色高亮
-                            styled_metric = metric_data.style.format({
+                            def highlight_max_min(s):
+                                if s.name in ["均值", "中位数", "最小值", "最大值"]:
+                                    is_max = s == s.max()
+                                    is_min = s == s.min()
+                                    colors = []
+                                    for val, mx, mn in zip(s, is_max, is_min):
+                                        if mx and s.name != "最小值":
+                                            colors.append('background-color: #90EE90; font-weight: bold')
+                                        elif mn and s.name != "最大值":
+                                            colors.append('background-color: #FFB6C1; font-weight: bold')
+                                        else:
+                                            colors.append('')
+                                    return colors
+                                return ['' for _ in s]
+
+                            styled_metric = metric_data.style.apply(highlight_max_min, axis=0).format({
                                 "均值": "{:.3f}",
                                 "中位数": "{:.3f}",
                                 "标准差": "{:.3f}",
                                 "最小值": "{:.3f}",
                                 "最大值": "{:.3f}"
                             })
-                            st.dataframe(styled_metric, use_container_width=True)
+                            st.dataframe(styled_metric, width='stretch')
 
                             if len(metric_data) > 1:
                                 col1, col2 = st.columns(2)
                                 with col1:
                                     st.caption("均值对比")
-                                    st.bar_chart(metric_data["均值"], use_container_width=True)
+                                    st.bar_chart(metric_data["均值"], width='stretch')
                                 with col2:
                                     st.caption("标准差对比")
-                                    st.bar_chart(metric_data["标准差"], use_container_width=True)
+                                    st.bar_chart(metric_data["标准差"], width='stretch')
                 elif available_metrics and TEST_TYPE_COLUMN in result_df.columns:
                     st.info("按站别统计缺少有效的数值。")
         else:
             st.info("请先抽取数据")
 
     
+    action_requested = submitted
     extraction_state = st.session_state.get(EXTRACTION_STATE_KEY)
 
-    previous_inputs_match = False
-    if extraction_state and "form_folder_input" in extraction_state:
-        previous_inputs_match = (
-            folder_input == extraction_state.get("form_folder_input", "")
-            and selected_tests == extraction_state.get("form_selected_tests", [])
-            and selected_measurements == extraction_state.get("form_selected_measurements", [])
-            and current_input == extraction_state.get("form_current_input", "")
-        )
-
-    if extraction_state is not None and not action_requested and not previous_inputs_match:
-        st.session_state[EXTRACTION_STATE_KEY] = None
-        extraction_state = None
-
-    if force_refresh:
-        clear_extraction_caches()
-        st.session_state.pop(EXTRACTION_STATE_KEY, None)
-        st.session_state.pop("lvi_plot_sources", None)
-        st.session_state.pop("rth_plot_sources", None)
-        extraction_state = None
-        previous_inputs_match = False
-
-    should_recompute = (
-        force_refresh
-        or extraction_state is None
-        or (action_requested and not previous_inputs_match)
-    )
+    # 检查表单输入是否发生变化，如果变化则清空旧数据
+    if extraction_state is not None and not action_requested:
+        # 只有当extraction_state中包含表单输入字段时才进行比较（避免第一次提交时误判）
+        if "form_folder_input" in extraction_state:
+            # 比较当前表单输入和上次保存的输入
+            old_folder_input = extraction_state.get("form_folder_input", "")
+            old_selected_tests = extraction_state.get("form_selected_tests", [])
+            old_selected_measurements = extraction_state.get("form_selected_measurements", [])
+            old_current_input = extraction_state.get("form_current_input", "")
+            
+            # 如果任何输入发生变化，清空旧数据
+            if (folder_input != old_folder_input or 
+                selected_tests != old_selected_tests or 
+                selected_measurements != old_selected_measurements or
+                current_input != old_current_input):
+                st.session_state[EXTRACTION_STATE_KEY] = None
+                store_data_fetch_result(None)
+                extraction_state = None
 
     result_df: Optional[pd.DataFrame] = None
 
@@ -2910,19 +2955,11 @@ def main() -> None:
 
             current_points = []
 
-        if should_recompute:
-            combined_frames = []
-            error_messages = []
-            info_messages = []
-        else:
-            cached_state = extraction_state or {}
-            folder_entries = cached_state.get("folder_entries", folder_entries)
-            combined_frames = cached_state.get("combined_frames", [])
-            error_messages = cached_state.get("error_messages", [])
-            info_messages = cached_state.get("info_messages", [])
-            result_df = cached_state.get("result_df")
-            current_points = cached_state.get("current_points", current_points)
-            st.info("输入未变化，复用上次提取结果。如需重新加载，请点击“强制刷新缓存”。")
+        combined_frames: List[pd.DataFrame] = []
+
+        error_messages: List[str] = []
+
+        info_messages: List[str] = []
 
     else:
 
@@ -2945,7 +2982,7 @@ def main() -> None:
         st.session_state.lvi_plot_sources = {}
     if 'rth_plot_sources' not in st.session_state:
         st.session_state.rth_plot_sources = {}
-    if action_requested and should_recompute:
+    if action_requested:
 
         st.session_state.lvi_plot_sources = {}
         st.session_state.rth_plot_sources = {}
@@ -3116,21 +3153,22 @@ def main() -> None:
         lvi_plot_sources: Dict[Tuple[str, str], Tuple[pd.DataFrame, Optional[pd.DataFrame]]] = st.session_state.lvi_plot_sources
         rth_plot_sources: Dict[Tuple[str, str], pd.DataFrame] = st.session_state.rth_plot_sources
 
-    if action_requested and should_recompute:
+    if action_requested:
 
         if not combined_frames:
         
             st.toast("❌ 未能汇总出任何数据", icon="❌")
         
             if error_messages:
-        
+
                 with st.expander(f"失败详情（{len(error_messages)} 条）", expanded=False):
-        
+
                     for message in error_messages:
-        
+
                         st.markdown(f"- {message}")
-        
+
             st.session_state[EXTRACTION_STATE_KEY] = None
+            store_data_fetch_result(None)
             return
         
         valid_frames: List[pd.DataFrame] = []
@@ -3160,14 +3198,15 @@ def main() -> None:
             st.toast("❌ 无法整理出有效的数据", icon="❌")
         
             if error_messages:
-        
+
                 with st.expander(f"失败详情（{len(error_messages)} 条）", expanded=False):
-        
+
                     for message in error_messages:
-        
+
                         st.markdown(f"- {message}")
-        
+
             st.session_state[EXTRACTION_STATE_KEY] = None
+            store_data_fetch_result(None)
             return
         
         result_df = pd.concat(valid_frames, ignore_index=True)
@@ -3223,6 +3262,8 @@ def main() -> None:
         combined_frames = extraction_state["combined_frames"]
         error_messages = extraction_state["error_messages"]
         info_messages = extraction_state["info_messages"]
+
+    store_data_fetch_result(result_df)
 
     render_extraction_results_section(
         extraction_results_container,

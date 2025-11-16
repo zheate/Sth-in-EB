@@ -232,7 +232,7 @@ def prepare_dataframe(raw: pd.DataFrame) -> Optional[pd.DataFrame]:
 
     if "测试时间" in df.columns:
         df["测试时间"] = pd.to_datetime(df["测试时间"], errors="coerce")
-        df["测试日期"] = df["测试时间"].dt.date
+        df["测试日期"] = df["测试时间"].dt.normalize()
     else:
         df["测试日期"] = pd.NaT
 
@@ -591,7 +591,9 @@ with filters_row[3]:
             key="test_analysis_date_range",
         )
         if start and end:
-            mask = filtered_df["测试日期"].between(start, end)
+            start_dt = pd.to_datetime(start)
+            end_dt = pd.to_datetime(end)
+            mask = filtered_df["测试日期"].between(start_dt, end_dt)
             filtered_df = filtered_df[mask]
     else:
         st.write("测试时间缺失")

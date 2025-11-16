@@ -1,0 +1,1686 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "created_at": "2025-10-19T07:27:51.818609",
+    "created_by": "user",
+    "description": "从数据提取、常用测试数据分析页面收集的数据",
+    "target_current": 18.0,
+    "shell_count": 55
+  },
+  "shells": {
+    "HAM560090": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.73,
+        "thermal_resistance": 0.036357876,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560163": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.4,
+        "thermal_resistance": 0.041998513,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560156": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.1,
+        "thermal_resistance": 0.036494553,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560068": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.3,
+        "thermal_resistance": 0.03919612,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560079": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.3,
+        "thermal_resistance": 0.037664,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560106": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.5,
+        "thermal_resistance": 0.03600762,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560170": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.8,
+        "thermal_resistance": 0.03629361,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560056": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.36,
+        "thermal_resistance": 0.03830737,
+        "current": 18.0,
+        "test_type": "Pre测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560071": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.4,
+        "thermal_resistance": 0.040295824,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560100": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.6,
+        "thermal_resistance": 0.037592635,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560105": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.7,
+        "thermal_resistance": 0.039569486,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560157": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.6,
+        "thermal_resistance": 0.0361788,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560098": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.43,
+        "thermal_resistance": 0.037511833,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560082": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.3,
+        "thermal_resistance": 0.040911764,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560055": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.2,
+        "thermal_resistance": 0.038770333,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560161": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.07,
+        "thermal_resistance": 0.03909552,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560158": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.01,
+        "thermal_resistance": 0.036208123,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560086": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.6,
+        "thermal_resistance": 0.037910003,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560089": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.49,
+        "thermal_resistance": 0.036221698,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560104": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.7,
+        "thermal_resistance": 0.038181663,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560154": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.65,
+        "thermal_resistance": 0.035388295,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560081": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.08,
+        "thermal_resistance": 0.03692251,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560160": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.3,
+        "thermal_resistance": 0.038203523,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560074": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.32,
+        "thermal_resistance": 0.030399308,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560101": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.7,
+        "thermal_resistance": 0.035530206,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "12": {
+      "data_fetch": {
+        "current": [
+          19.0,
+          19.0,
+          19.0
+        ],
+        "power": [
+          335.1,
+          335.1,
+          400.0
+        ],
+        "voltage": [
+          31.54,
+          31.54,
+          31.54
+        ],
+        "efficiency": [
+          55.92,
+          55.92,
+          55.92
+        ],
+        "wavelength": [
+          917.965,
+          917.965,
+          919.0
+        ],
+        "shift": [
+          9.63,
+          9.63,
+          10.665
+        ],
+        "test_type": "耦合",
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": true
+      },
+      "test_analysis": {
+        "na": 95.1,
+        "thermal_resistance": 0.040854644,
+        "current": 18.0,
+        "test_type": "封盖测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560327": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.6,
+        "thermal_resistance": 0.03878816,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560076": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 95.8,
+        "thermal_resistance": 0.035036456,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560108": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.97,
+        "thermal_resistance": 0.038927514,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560152": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.2,
+        "thermal_resistance": 0.035611566,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560095": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 95.02,
+        "thermal_resistance": 0.036581352,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560167": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.4,
+        "thermal_resistance": 0.037885956,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560107": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.26,
+        "thermal_resistance": 0.034485746,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560097": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.14,
+        "thermal_resistance": 0.0361925,
+        "current": 18.0,
+        "test_type": "Pre测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560159": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.0,
+        "thermal_resistance": 0.034520403,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560102": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.3,
+        "thermal_resistance": 0.038089834,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560168": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.09,
+        "thermal_resistance": 0.03759203,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560166": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.9,
+        "thermal_resistance": 0.036785614,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560060": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.37,
+        "thermal_resistance": 0.039796595,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560084": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 95.6,
+        "thermal_resistance": 0.037945867,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560091": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.7,
+        "thermal_resistance": 0.039318934,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560171": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.2,
+        "thermal_resistance": 0.03783789,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560087": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.0,
+        "thermal_resistance": 0.040581837,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560099": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.0,
+        "thermal_resistance": 0.038933314,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560070": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.02,
+        "thermal_resistance": 0.03668136,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560085": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 95.3,
+        "thermal_resistance": 0.037244573,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560165": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.26,
+        "thermal_resistance": 0.038202118,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560162": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.0,
+        "thermal_resistance": 0.03906857,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560075": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.0,
+        "thermal_resistance": 0.03497109,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560072": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 97.76,
+        "thermal_resistance": 0.0356356,
+        "current": 18.0,
+        "test_type": "Pre测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560083": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.04,
+        "thermal_resistance": 0.03826851,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560094": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 95.1,
+        "thermal_resistance": 0.037686627,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560103": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.8,
+        "thermal_resistance": 0.03929636,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560175": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 98.0,
+        "thermal_resistance": 0.037653722,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    },
+    "HAM560164": {
+      "data_fetch": {
+        "current": [],
+        "power": [],
+        "voltage": [],
+        "efficiency": [],
+        "wavelength": [],
+        "shift": [],
+        "test_type": null,
+        "collected_at": "2025-10-19T07:27:51.736100",
+        "data_available": false
+      },
+      "test_analysis": {
+        "na": 96.4,
+        "thermal_resistance": 0.036430266,
+        "current": 18.0,
+        "test_type": "Post测试",
+        "collected_at": "2025-10-19T07:27:51.751609",
+        "data_available": true
+      },
+      "progress": {
+        "part_number": null,
+        "production_order": null,
+        "current_station": null,
+        "completed_stations": [],
+        "station_times": {},
+        "collected_at": "2025-10-19T07:27:51.806610",
+        "data_available": false
+      }
+    }
+  }
+}

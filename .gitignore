@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -24,7 +24,6 @@ wheels/
 venv/
 ENV/
 env/
-.venv
 
 # IDE
 .vscode/
@@ -33,25 +32,27 @@ env/
 *.swo
 *~
 
-# Streamlit
-.streamlit/secrets.toml
-
-# Data files (optional - uncomment if you don't want to upload data)
-# *.xlsx
-# *.xls
-# *.csv
-
-# Logs
-*.log
-
 # OS
 .DS_Store
 Thumbs.db
 
-# Input/Output files
-*_input.json
-*_output.json
+# Logs
+*.log
+logs/
 
-# Temporary files
-*.tmp
+# Data files
+*.xlsx
+*.xls
+*.csv
+*.pkl
+.cache_*
+
+# Backup files
+*.backup
 *.bak
+
+# Trae
+.trae/
+
+# Test
+.pytest_cache/

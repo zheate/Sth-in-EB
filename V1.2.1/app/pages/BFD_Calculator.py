@@ -1,17 +1,13 @@
 import json
 import streamlit as st
+from pathlib import Path
 
-from config import get_config_path
-
-# 配置页面（仅在独立运行时使用）
-try:
-    st.set_page_config(page_title="后焦距计算器", page_icon="🔧", layout="wide")
-except:
-    pass  # 如果已经配置过，忽略错误
+# 配置页面
+st.set_page_config(page_title="后焦距计算器", page_icon="🔧", layout="wide")
 
 # 文件路径
-MATERIAL_FILE = get_config_path("material.json")
-INPUT_FILE = get_config_path("BFD_Calculator_input.json")
+MATERIAL_FILE = Path("material.json")
+INPUT_FILE = Path("BFD_Calculator_input.json")
 
 
 def load_json(filename, default_data):
@@ -66,9 +62,6 @@ def init_session_state():
             "efl_slow": saved_inputs.get("soc_efl", ""),
             "thickness_slow": saved_inputs.get("soc_thickness", ""),
             "precision": saved_inputs.get("precision", 3),
-            "has_endcap": saved_inputs.get("has_endcap", False),
-            "endcap_material": saved_inputs.get("endcap_material", "SK1310_976"),
-            "endcap_length": saved_inputs.get("endcap_length") or "5.0",
         }
     
     if "show_material_manager" not in st.session_state:
@@ -248,7 +241,7 @@ def material_manager():
         selected_material = st.selectbox(
             "选择材料进行编辑",
             options=[""] + sorted(materials.keys()),
-            key="bfd_selected_material_edit"
+            key="selected_material_edit"
         )
     else:
         selected_material = ""
@@ -265,16 +258,16 @@ def material_manager():
                 editor_state["selected"] = selected_material
                 editor_state["name"] = selected_material
                 editor_state["index"] = str(materials.get(selected_material, "1.5"))
-                st.session_state["bfd_edit_material_name"] = editor_state["name"]
-                st.session_state["bfd_edit_re_index"] = editor_state["index"]
-            material_name = st.text_input("材料名称", key="bfd_edit_material_name")
-            re_index = st.text_input("折射率", key="bfd_edit_re_index")
+                st.session_state["edit_material_name"] = editor_state["name"]
+                st.session_state["edit_re_index"] = editor_state["index"]
+            material_name = st.text_input("材料名称", key="edit_material_name")
+            re_index = st.text_input("折射率", key="edit_re_index")
             editor_state["name"] = material_name
             editor_state["index"] = re_index
         else:
             editor_state["selected"] = ""
-            material_name = st.text_input("材料名称", key="bfd_new_material_name")
-            re_index = st.text_input("折射率", value="1.5", key="bfd_new_re_index")
+            material_name = st.text_input("材料名称", key="new_material_name")
+            re_index = st.text_input("折射率", value="1.5", key="new_re_index")
     
     with col2:
         st.write("")  # 占位
@@ -283,7 +276,7 @@ def material_manager():
         btn_col1, btn_col2, btn_col3 = st.columns(3)
         
         with btn_col1:
-            if st.button("💾 保存", key="bfd_save_material"):
+            if st.button("💾 保存", use_container_width=True):
                 valid, msg = validate_float(re_index, lambda x: x > 1, "必须大于1", "折射率")
                 if not material_name.strip():
                     st.error("材料名称不能为空")
@@ -298,7 +291,7 @@ def material_manager():
                     st.rerun()
         
         with btn_col2:
-            if st.button("🗑️ 删除", disabled=not selected_material, key="bfd_delete_material"):
+            if st.button("🗑️ 删除", use_container_width=True, disabled=not selected_material):
                 if selected_material in materials:
                     del materials[selected_material]
                     save_json(materials, MATERIAL_FILE)
@@ -306,7 +299,7 @@ def material_manager():
                     st.rerun()
         
         with btn_col3:
-            if st.button("❌ 关闭", key="bfd_close_material"):
+            if st.button("❌ 关闭", use_container_width=True):
                 st.session_state.show_material_manager = False
                 st.rerun()
     
@@ -328,12 +321,12 @@ def main():
     # 顶部按钮
     col1, col2, col3 = st.columns([1, 1, 4])
     with col1:
-        if st.button("📦 管理材料", key="bfd_manage_material"):
+        if st.button("📦 管理材料", use_container_width=True):
             st.session_state.show_material_manager = not st.session_state.show_material_manager
             st.rerun()
     
     with col2:
-        if st.button("ℹ️ 公式说明", key="bfd_formula_help"):
+        if st.button("ℹ️ 公式说明", use_container_width=True):
             st.session_state.show_formula = not st.session_state.get("show_formula", False)
     
     # 显示材料管理器
@@ -348,19 +341,13 @@ def main():
             
             st.markdown("#### 🟡 快轴后焦距 (FOC BFD):")
             st.latex(r"""
-            BFD_{FOC} = EFL_{FOC} - \frac{T_{FOC}}{n_{FOC}} + \frac{T_{SOC} \times (n_{SOC} - 1)}{n_{SOC}} + \Delta_{端帽}
+            BFD_{FOC} = EFL_{FOC} - \frac{T_{FOC}}{n_{FOC}} + \frac{T_{SOC} \times (n_{SOC} - 1)}{n_{SOC}}
             """)
             
             st.markdown("#### 🔵 慢轴后焦距 (SOC BFD):")
             st.latex(r"""
-            BFD_{SOC} = EFL_{SOC} - \frac{T_{SOC}}{n_{SOC}} + \Delta_{端帽}
+            BFD_{SOC} = EFL_{SOC} - \frac{T_{SOC}}{n_{SOC}}
             """)
-            
-            st.markdown("#### 🔬 端帽影响:")
-            st.latex(r"""
-            \Delta_{端帽} = L_{端帽} \times \frac{n_{端帽} - 1}{n_{端帽}}
-            """)
-            st.markdown("其中 $L_{端帽}$ 为端帽长度，$n_{端帽}$ 为端帽折射率")
             
             st.markdown("---")
             st.markdown("### 辅助公式")
@@ -394,73 +381,9 @@ def main():
             import pandas as pd
             st.dataframe(pd.DataFrame(symbols_data), use_container_width=True, hide_index=True)
     
-    # 精度设置和端帽设置并排
-    settings_col1, settings_col2 = st.columns([1, 2])
-    
-    with settings_col1:
-        st.markdown("### ⚙️ 计算设置")
-        precision = st.slider("计算精度（小数位数）", 1, 6, st.session_state.inputs["precision"], key="precision_slider")
-        st.session_state.inputs["precision"] = precision
-    
-    with settings_col2:
-        st.markdown("### 🔬 端帽设置")
-        endcap_sub_col1, endcap_sub_col2, endcap_sub_col3 = st.columns([1, 1.5, 1.5])
-        
-        with endcap_sub_col1:
-            has_endcap = st.checkbox(
-                "包含端帽",
-                value=st.session_state.inputs.get("has_endcap", False),
-                key="bfd_has_endcap_checkbox",
-                help="勾选此项以考虑端帽对焦距的影响"
-            )
-            st.session_state.inputs["has_endcap"] = has_endcap
-        
-        endcap_material = None
-        endcap_n = None
-        endcap_length_val = None
-        
-        if has_endcap:
-            with endcap_sub_col2:
-                # 端帽材料选择
-                endcap_materials_list = sorted(st.session_state.materials.keys())
-                current_endcap_material = st.session_state.inputs.get("endcap_material", "SK1310_976")
-                
-                if current_endcap_material not in endcap_materials_list:
-                    if "SK1310_976" in endcap_materials_list:
-                        current_endcap_material = "SK1310_976"
-                    else:
-                        current_endcap_material = endcap_materials_list[0] if endcap_materials_list else "air"
-                
-                endcap_material = st.selectbox(
-                    "端帽材料",
-                    options=endcap_materials_list,
-                    index=endcap_materials_list.index(current_endcap_material) if current_endcap_material in endcap_materials_list else 0,
-                    key="bfd_endcap_material_select",
-                    help="选择端帽材料"
-                )
-                st.session_state.inputs["endcap_material"] = endcap_material
-                
-                # 获取端帽折射率
-                endcap_n = float(st.session_state.materials.get(endcap_material, 1.45))
-                st.markdown(f"**折射率:** {endcap_n}")
-            
-            with endcap_sub_col3:
-                existing_length = st.session_state.inputs.get("endcap_length") or "5.0"
-                endcap_length = st.text_input(
-                    "端帽长度 [mm]",
-                    value=existing_length,
-                    key="bfd_endcap_length_input",
-                    help="输入端帽的长度"
-                )
-                if not endcap_length.strip():
-                    endcap_length = "5.0"
-                st.session_state.inputs["endcap_length"] = endcap_length
-                
-                try:
-                    endcap_length_val = float(endcap_length)
-                except ValueError:
-                    endcap_length_val = 5.0
-                    st.session_state.inputs["endcap_length"] = "5.0"
+    # 精度设置
+    precision = st.slider("计算精度（小数位数）", 1, 6, st.session_state.inputs["precision"], key="precision_slider")
+    st.session_state.inputs["precision"] = precision
     
     st.markdown("---")
     
@@ -582,7 +505,7 @@ def main():
     st.markdown("---")
     
     # 计算按钮
-    if st.button("🧮 计算 BFD", type="primary", key="bfd_calculate"):
+    if st.button("🧮 计算 BFD", type="primary", use_container_width=True):
         # 验证输入
         errors = []
         
@@ -634,28 +557,9 @@ def main():
                     r_slow_val = float(curvature_slow)
                     efl_slow_val = r_slow_val / (n_slow - 1)
                 
-                # 计算端帽影响
-                endcap_correction = 0
-                # 从session_state获取端帽设置
-                has_endcap_calc = st.session_state.inputs.get("has_endcap", False)
-                if has_endcap_calc:
-                    endcap_material_calc = st.session_state.inputs.get("endcap_material", "")
-                    endcap_length_calc = st.session_state.inputs.get("endcap_length", "")
-                    
-                    if endcap_material_calc and endcap_length_calc:
-                        try:
-                            endcap_n_calc = float(st.session_state.materials.get(endcap_material_calc, 1.45))
-                            endcap_length_val_calc = float(endcap_length_calc)
-                            
-                            if endcap_length_val_calc > 0:
-                                # 端帽带来的焦距影响：厚度 * (端帽折射率 - 1) / 端帽折射率
-                                endcap_correction = endcap_length_val_calc * (endcap_n_calc - 1) / endcap_n_calc
-                        except (ValueError, TypeError):
-                            pass
-                
-                # 计算 BFD（加上端帽影响）
-                bfd_fast = efl_fast_val - (t_fast / n_fast) + (t_slow * (n_slow - 1) / n_slow) + endcap_correction
-                bfd_slow = efl_slow_val - (t_slow / n_slow) + endcap_correction
+                # 计算 BFD
+                bfd_fast = efl_fast_val - (t_fast / n_fast) + (t_slow * (n_slow - 1) / n_slow)
+                bfd_slow = efl_slow_val - (t_slow / n_slow)
                 
                 # 显示结果
                 st.success("✅ 计算完成！")
@@ -669,12 +573,7 @@ def main():
                     st.markdown(f"### 🔵 慢轴后焦距 (SOC BFD)")
                     st.markdown(f"# {bfd_slow:.{precision}f} mm")
                 
-                # 显示端帽影响
-                if has_endcap_calc and abs(endcap_correction) > 0.001:
-                    st.markdown("---")
-                    st.info(f"🔬 端帽影响: {endcap_correction:+.{precision}f} mm (材料: {endcap_material_calc}, 长度: {endcap_length_val_calc:.{precision}f} mm, 折射率: {endcap_n_calc})")
-                
-                # 保存输入（端帽信息已经在输入时保存到session_state）
+                # 保存输入
                 st.session_state.inputs.update({
                     "material_fast": material_fast,
                     "re_index_fast": re_index_fast,
@@ -701,9 +600,6 @@ def main():
                     "soc_efl": efl_slow,
                     "soc_thickness": thickness_slow,
                     "precision": precision,
-                    "has_endcap": has_endcap_calc,
-                    "endcap_material": endcap_material_calc if has_endcap_calc else "",
-                    "endcap_length": endcap_length_calc if has_endcap_calc else "",
                 }, INPUT_FILE)
                 
             except Exception as e:

@@ -50,6 +50,7 @@ parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 from config import DATA_FETCH_DEFAULT_FOLDER
+from utils.compat import inject_structured_clone_polyfill
 
 PRIMARY_RED = "red"
 PRIMARY_DARK = "#262626"
@@ -1825,7 +1826,7 @@ def render_extraction_results_section(
             table_height = max(140, min(600, row_count * 34 + 60))
             st.dataframe(
                 result_df,
-                use_container_width=True,
+                width='stretch',
                 hide_index=False,
                 height=table_height,
             )
@@ -1844,7 +1845,7 @@ def render_extraction_results_section(
         with col_btn:
             st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
             download_requested = st.button(
-                "💾 生成下载文件", key="download_btn"
+                "💾 生成下载文件", width='stretch', key="download_btn"
             )
 
         if download_requested:
@@ -1886,6 +1887,7 @@ def render_extraction_results_section(
                 ),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"download_button_{download_counter}",
+                width='stretch',
             )
 
         if errors or infos:
@@ -1910,6 +1912,7 @@ def render_extraction_results_section(
 
 def main() -> None:
     st.set_page_config(page_title="Excel 数据列提取", layout="wide")
+    inject_structured_clone_polyfill()
     # 侧边栏目录
     with st.sidebar:
         st.title("📑 功能导航")
@@ -2550,12 +2553,11 @@ def main() -> None:
             st.markdown("---")
             st.markdown('<div id="multi_station"></div>', unsafe_allow_html=True)
             trigger_scroll_if_needed("multi_station")
-            st.subheader("📊 多壳体分析")
-            
+            st.subheader("📊 多站别分析")
             # 获取所有可用的壳体
             available_shells = sorted(list(set([shell_id for (shell_id, _) in st.session_state.lvi_plot_sources.keys()])))
             
-            # 所有壳体平均值变化分析
+            # 所有壳体平均值变化分析 - 独立显示，不依赖下拉菜单
             if len(available_shells) > 1:
                 st.markdown("**📊 所有壳体平均值变化分析**")
                 
@@ -2664,45 +2666,20 @@ def main() -> None:
                                 avg_change_df[col] = avg_change_df[col].apply(
                                     lambda x: 0.0 if pd.notna(x) and abs(round(x, 3)) < 0.001 else round(x, 3) if pd.notna(x) else x
                                 )
-                        
-                        # 使用 st.metric 展示变化趋势
-                        for idx, row in avg_change_df.iterrows():
-                            st.markdown(f"**{row['变化']}**")
-                            
-                            # 创建指标卡片
-                            cols = st.columns(len(avg_numeric_cols))
-                            for i, col_name in enumerate(avg_numeric_cols):
-                                if col_name in row and pd.notna(row[col_name]):
-                                    value = row[col_name]
-                                    
-                                    # 使用 st.metric 显示
-                                    with cols[i]:
-                                        # 提取单位
-                                        if "(W)" in col_name:
-                                            unit = "W"
-                                            label = col_name.replace("(W)", "").strip()
-                                        elif "(%)" in col_name:
-                                            unit = "%"
-                                            label = col_name.replace("(%)", "").strip()
-                                        elif "(V)" in col_name:
-                                            unit = "V"
-                                            label = col_name.replace("(V)", "").strip()
-                                        elif "(nm)" in col_name:
-                                            unit = "nm"
-                                            label = col_name.replace("(nm)", "").strip()
-                                        else:
-                                            unit = ""
-                                            label = col_name
-                                        
-                                        # st.metric 会自动显示箭头和颜色
-                                        st.metric(
-                                            label=label,
-                                            value=f"{abs(value):.3f}{unit}",
-                                            delta=f"{value:+.3f}{unit}",
-                                            delta_color="normal"  # 正值红色上箭头，负值绿色下箭头
-                                        )
-                            
-                            st.markdown("---")
+
+                        column_config = {
+                            col: st.column_config.NumberColumn(
+                                label=col,
+                                format='%.3f'
+                            )
+                            for col in avg_numeric_cols
+                        }
+                        st.dataframe(
+                            avg_change_df,
+                            width='stretch',
+                            hide_index=True,
+                            column_config=column_config
+                        )
                 
                 st.markdown("---")
             
@@ -2777,15 +2754,19 @@ def main() -> None:
                         overall_summary[["均值", "中位数", "标准差", "最小值", "最大值"]] = overall_summary[["均值", "中位数", "标准差", "最小值", "最大值"]].round(3)
                         overall_summary.index.name = "指标"
 
-                        # 极简风格：不使用颜色高亮
-                        styled_summary = overall_summary.style.format({
+                        def highlight_stats(s):
+                            if s.name in ["最小值", "最大值"]:
+                                return ['background-color: #ffe6e6' if s.name == "最小值" else 'background-color: #e6ffe6' for _ in s]
+                            return ['' for _ in s]
+
+                        styled_summary = overall_summary.style.apply(highlight_stats, axis=0).format({
                             "均值": "{:.3f}",
                             "中位数": "{:.3f}",
                             "标准差": "{:.3f}",
                             "最小值": "{:.3f}",
                             "最大值": "{:.3f}"
                         })
-                        st.dataframe(styled_summary, use_container_width=True)
+                        st.dataframe(styled_summary, width='stretch')
                 else:
                     st.info("按站别统计缺少有效的数值。")
 
@@ -2805,24 +2786,38 @@ def main() -> None:
 
                             st.markdown(f"#### 🔹 {metric}")
 
-                            # 极简风格：不使用颜色高亮
-                            styled_metric = metric_data.style.format({
+                            def highlight_max_min(s):
+                                if s.name in ["均值", "中位数", "最小值", "最大值"]:
+                                    is_max = s == s.max()
+                                    is_min = s == s.min()
+                                    colors = []
+                                    for val, mx, mn in zip(s, is_max, is_min):
+                                        if mx and s.name != "最小值":
+                                            colors.append('background-color: #90EE90; font-weight: bold')
+                                        elif mn and s.name != "最大值":
+                                            colors.append('background-color: #FFB6C1; font-weight: bold')
+                                        else:
+                                            colors.append('')
+                                    return colors
+                                return ['' for _ in s]
+
+                            styled_metric = metric_data.style.apply(highlight_max_min, axis=0).format({
                                 "均值": "{:.3f}",
                                 "中位数": "{:.3f}",
                                 "标准差": "{:.3f}",
                                 "最小值": "{:.3f}",
                                 "最大值": "{:.3f}"
                             })
-                            st.dataframe(styled_metric, use_container_width=True)
+                            st.dataframe(styled_metric, width='stretch')
 
                             if len(metric_data) > 1:
                                 col1, col2 = st.columns(2)
                                 with col1:
                                     st.caption("均值对比")
-                                    st.bar_chart(metric_data["均值"], use_container_width=True)
+                                    st.bar_chart(metric_data["均值"], width='stretch')
                                 with col2:
                                     st.caption("标准差对比")
-                                    st.bar_chart(metric_data["标准差"], use_container_width=True)
+                                    st.bar_chart(metric_data["标准差"], width='stretch')
                 elif available_metrics and TEST_TYPE_COLUMN in result_df.columns:
                     st.info("按站别统计缺少有效的数值。")
         else:

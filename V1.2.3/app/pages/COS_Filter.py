@@ -372,9 +372,6 @@ if st.button("🔍 第一步筛选", type="primary", use_container_width=True):
                 time.sleep(0.8)
                 progress_bar.empty()
                 status_text.empty()
-                
-                st.success(f"✅ 第一步筛选完成！找到 {len(df_step1)} 条符合基础条件的记录")
-                st.info("👇 请在下方选择ItemNum进行第二步筛选，或直接点击'完成筛选'获取结果")
             else:
                 progress_bar.progress(100)
                 status_text.empty()
@@ -405,7 +402,6 @@ if st.session_state.step1_result is not None:
     if available_itemnums:
         # 显示ItemNum统计
         itemnum_counts = df_step1['ItemNum'].value_counts()
-        st.info(f"📊 第一步筛选结果中包含 {len(available_itemnums)} 个不同的ItemNum")
         
         # ItemNum选择
         selected_itemnums = st.multiselect(
