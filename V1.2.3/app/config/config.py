@@ -13,10 +13,12 @@ DEFAULT_DATA_FOLDER = str((APP_ROOT / "data").resolve())
 
 # Data_fetch.py 专用默认路径
 DATA_FETCH_DEFAULT_FOLDER = r"D:/"
+DATA_FETCH_CHIP_DEFAULT_FOLDER = r"Z:/Ldtd/"
 
 # 其他可选路径
 ALTERNATIVE_PATHS = [
-    r"D:/",
+    DATA_FETCH_DEFAULT_FOLDER,
+    DATA_FETCH_CHIP_DEFAULT_FOLDER,
     r"./data",
     r"Z:/Ldtd/fcp/",
     str((APP_ROOT / "data").resolve()),]

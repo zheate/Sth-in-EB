@@ -598,14 +598,14 @@ def create_progress_table(progress_df: pd.DataFrame) -> pd.DataFrame:
     
 
     result_df = pd.DataFrame(table_data)
-
-    # 按站别序号排序（从小到大，进度慢的在前）
-
-    result_df = result_df.sort_values('站别序号', ascending=True)
-
-    # 删除排序用的列
-
-    result_df = result_df.drop(columns=['站别序号'])
+    
+    # 只在DataFrame不为空时进行排序和删除列操作
+    if '站别序号' in result_df.columns:
+        if not result_df.empty:
+            # 按站别序号排序（从小到大，进度慢的在前）
+            result_df = result_df.sort_values('站别序号', ascending=True)
+        # 删除排序用的列；errors='ignore' 防止列不存在时报错
+        result_df = result_df.drop(columns=['站别序号'], errors='ignore')
 
     
 
