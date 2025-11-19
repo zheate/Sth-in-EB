@@ -799,8 +799,22 @@ def main():
         try:
             from pathlib import Path
             import base64
-            endcap_image_path = Path("app/data/endcap.png")
-            if endcap_image_path.exists():
+            import os
+            
+            # 尝试多个可能的路径
+            possible_paths = [
+                Path("app/data/endcap.png"),
+                Path("data/endcap.png"),
+                Path(__file__).parent.parent / "data" / "endcap.png"
+            ]
+            
+            endcap_image_path = None
+            for path in possible_paths:
+                if path.exists():
+                    endcap_image_path = path
+                    break
+            
+            if endcap_image_path and endcap_image_path.exists():
                 # 使用HTML居中图片
                 with open(endcap_image_path, "rb") as img_file:
                     img_data = base64.b64encode(img_file.read()).decode()
@@ -813,8 +827,10 @@ def main():
                     """,
                     unsafe_allow_html=True
                 )
-        except Exception:
-            pass
+            else:
+                st.info("💡 提示：端帽光阑示意图未找到")
+        except Exception as e:
+            st.warning(f"加载示意图时出错: {str(e)}")
         
         st.markdown("---")
         st.markdown("### 🔍 端帽光阑计算")
