@@ -127,7 +127,6 @@ dmypy.json
 
 # Data files (if any large datasets)
 *.csv
-*.xlsx
 *.xls
 *.jsonl
 *.pkl
