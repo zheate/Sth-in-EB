@@ -1235,6 +1235,8 @@ if st.session_state.progress_df is not None:
 
             if not counts_df.empty:
 
+                st.markdown("---")
+
                 st.markdown("### 各站别当前数量")
 
                 table_col, chart_col = st.columns([2, 3])
@@ -1253,25 +1255,50 @@ if st.session_state.progress_df is not None:
 
                     chart_height = max(160, min(360, 28 * len(counts_df)))
 
+                    # 添加颜色映射以创建渐变效果
                     chart = (
 
                         alt.Chart(counts_df)
 
-                        .mark_bar()
+                        .mark_bar(
+                            cornerRadius=8,  # 圆角效果
+                            opacity=0.9,     # 略微透明增加层次感
+                            strokeWidth=1.5  # 描边宽度
+                        )
 
                         .encode(
 
-                            x=alt.X("数量:Q", title="壳体数量"),
+                            x=alt.X("数量:Q", title="完成数量", 
+                                    axis=alt.Axis(grid=True, gridOpacity=0.2, tickMinStep=1)),
 
-                            y=alt.Y("站别:N", sort=station_order, title="站别"),
+                            y=alt.Y("站别:N", sort=station_order, title="站别",
+                                    axis=alt.Axis(labelFontSize=12, labelFontWeight='bold')),
+
+                            # 使用渐变色方案创建3D感
+                            color=alt.Color('数量:Q',
+                                          scale=alt.Scale(
+                                              scheme='blues',  # 蓝色渐变方案
+                                              domain=[counts_df["数量"].min(), counts_df["数量"].max()]
+                                          ),
+                                          legend=None),
+
+                            # 添加描边颜色，让条形更立体
+                            stroke=alt.value('#ffffff33'),  # 半透明白色描边
 
                             tooltip=["站别", "数量", alt.Tooltip("占比:Q", title="占比", format=".1%")],
 
                         )
 
-                    ).properties(height=chart_height)
+                    ).properties(
+                        height=chart_height
+                    ).configure_view(
+                        strokeWidth=0  # 移除外边框
+                    ).configure_axis(
+                        titleFontSize=13,
+                        titleFontWeight='bold'
+                    )
 
-                    st.altair_chart(chart, use_container_width=True)
+                    st.altair_chart(chart, use_container_width=True, theme="streamlit")
 
             
 

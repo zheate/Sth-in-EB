@@ -91,6 +91,30 @@ run.bat
 streamlit run app/app.py
 ```
 
+## 🖥 使用 streamlit-desktop-app 打包
+
+1. 安装桌面打包依赖（`requirements.txt` 已包含 `streamlit-desktop-app` 与 `pyinstaller`）：
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. 在仓库根目录本地验证桌面模式：
+   ```bash
+   python desktop_app.py
+   ```
+3. 生成 Windows 可执行文件（携带 metadata，避免 `PackageNotFoundError: streamlit`）：
+   ```bash
+   pyinstaller --noconfirm --windowed --clean ^
+     --add-data "app;app" ^
+     --collect-all streamlit ^
+     --copy-metadata streamlit ^
+     --name SthInEB desktop_app.py
+   ```
+   - 产物路径：`dist/SthInEB/SthInEB.exe`，首次启动会自动解压临时文件夹。
+   - 如需图标，追加 `--icon your_icon.ico`。
+   - 如遇中文路径导致异常，可先将项目移到英文路径后再打包。
+   - 窗口标题、尺寸和 Streamlit 选项可在 `desktop_app.py` 中调整。
+4. 也可直接运行 `build_desktop.bat`（参数与上面命令一致）。
+
 ## 📁 项目结构
 
 ```
