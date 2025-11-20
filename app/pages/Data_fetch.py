@@ -17,6 +17,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 stats = None
 PolynomialFeatures = None
 LinearRegression = None
+HuberRegressor = None
+RANSACRegressor = None
 _PREDICTION_LIBS_LOADED = False
 
 HAS_PREDICTION_LIBS = all(
@@ -27,7 +29,7 @@ HAS_PREDICTION_LIBS = all(
 
 def _ensure_prediction_libs_loaded() -> bool:
     """Import optional prediction dependencies only when needed."""
-    global stats, PolynomialFeatures, LinearRegression, _PREDICTION_LIBS_LOADED, HAS_PREDICTION_LIBS
+    global stats, PolynomialFeatures, LinearRegression, HuberRegressor, RANSACRegressor, _PREDICTION_LIBS_LOADED, HAS_PREDICTION_LIBS
 
     if not HAS_PREDICTION_LIBS:
         return False
@@ -38,7 +40,10 @@ def _ensure_prediction_libs_loaded() -> bool:
     try:
         stats = importlib.import_module("scipy.stats")
         PolynomialFeatures = importlib.import_module("sklearn.preprocessing").PolynomialFeatures
-        LinearRegression = importlib.import_module("sklearn.linear_model").LinearRegression
+        linear_model_module = importlib.import_module("sklearn.linear_model")
+        LinearRegression = getattr(linear_model_module, "LinearRegression")
+        HuberRegressor = getattr(linear_model_module, "HuberRegressor", None)
+        RANSACRegressor = getattr(linear_model_module, "RANSACRegressor", None)
     except ImportError:
         HAS_PREDICTION_LIBS = False
         return False
@@ -244,6 +249,9 @@ def plot_multi_shell_prediction(
     metric_label: str,
     test_type: str,
     poly_degree: int = 2,
+    fit_mode: str = "global",
+    auto_poly: bool = False,
+    max_degree: int = 3,
 ) -> Optional[alt.Chart]:
     """创建多壳体拟合预测图（Altair实现），包含95%预测带
     
@@ -296,94 +304,228 @@ def plot_multi_shell_prediction(
     if all_x.size == 0 or all_y.size == 0 or not shell_points:
         return None
     
-    # 效率数据使用专业模型，其他数据使用多项式
-    if metric_column == EFFICIENCY_COLUMN:
-        # 使用效率专用模型（自动选择最佳模型）
-        from scipy.optimize import curve_fit
-        from math import log
-        
-        best_model_name = None
-        best_popt = None
-        best_aic = float('inf')
-        best_func = None
-        model_results = {}
-        
-        for model_name, (func, p0, display_name) in EFFICIENCY_MODELS.items():
-            try:
-                popt, _ = curve_fit(func, all_x, all_y, p0=p0, maxfev=10000)
-                yhat = func(all_x, *popt)
-                resid = all_y - yhat
+    if fit_mode == "global":
+        if metric_column == EFFICIENCY_COLUMN:
+            from scipy.optimize import curve_fit
+            from math import log
+            best_model_name = None
+            best_popt = None
+            best_aic = float('inf')
+            best_func = None
+            model_results = {}
+            for model_name, (func, p0, display_name) in EFFICIENCY_MODELS.items():
+                try:
+                    popt, _ = curve_fit(func, all_x, all_y, p0=p0, maxfev=10000)
+                    yhat = func(all_x, *popt)
+                    resid = all_y - yhat
+                    rss = float(np.sum(resid**2))
+                    n = len(all_y)
+                    k = len(popt)
+                    mse = rss / n
+                    rmse = float(np.sqrt(mse))
+                    tss = float(np.sum((all_y - np.mean(all_y))**2))
+                    r2 = float(1 - rss/tss) if tss > 0 else 0.0
+                    aic = float(n*log(rss/n) + 2*k) if rss > 0 else float('inf')
+                    model_results[model_name] = {
+                        'popt': popt,
+                        'rmse': rmse,
+                        'r2': r2,
+                        'aic': aic,
+                        'display_name': display_name
+                    }
+                    if aic < best_aic:
+                        best_aic = aic
+                        best_model_name = model_name
+                        best_popt = popt
+                        best_func = func
+                except Exception:
+                    continue
+            if best_func is None:
+                return None
+            x_min, x_max = all_x.min(), all_x.max()
+            x_range = x_max - x_min
+            x_pred = np.linspace(x_min - x_range * 0.05, x_max + x_range * 0.05, 200)
+            y_pred = best_func(x_pred, *best_popt)
+            y_fitted = best_func(all_x, *best_popt)
+            residuals = all_y - y_fitted
+            n = len(all_y)
+            p = len(best_popt)
+            mse = np.sum(residuals**2) / (n - p)
+            std_error = np.sqrt(mse)
+            r_squared = model_results[best_model_name]['r2']
+            model_display_name = model_results[best_model_name]['display_name']
+        else:
+            degrees = list(range(1, max_degree + 1)) if auto_poly else [poly_degree]
+            best = None
+            for deg in degrees:
+                poly = PolynomialFeatures(degree=deg)
+                X_poly = poly.fit_transform(all_x.reshape(-1, 1))
+                model = LinearRegression()
+                model.fit(X_poly, all_y)
+                y_fitted = model.predict(X_poly)
+                resid = all_y - y_fitted
                 rss = float(np.sum(resid**2))
                 n = len(all_y)
-                k = len(popt)
-                mse = rss / n
-                rmse = float(np.sqrt(mse))
-                tss = float(np.sum((all_y - np.mean(all_y))**2))
-                r2 = float(1 - rss/tss) if tss > 0 else 0.0
-                aic = float(n*log(rss/n) + 2*k) if rss > 0 else float('inf')
-                
-                model_results[model_name] = {
-                    'popt': popt,
-                    'rmse': rmse,
-                    'r2': r2,
-                    'aic': aic,
-                    'display_name': display_name
-                }
-                
-                if aic < best_aic:
-                    best_aic = aic
-                    best_model_name = model_name
-                    best_popt = popt
-                    best_func = func
-            except Exception:
-                continue
-        
-        if best_func is None:
-            # 如果所有效率模型都失败，返回None
-            return None
-        
-        # 使用最佳模型进行预测
-        x_min, x_max = all_x.min(), all_x.max()
-        x_range = x_max - x_min
-        x_pred = np.linspace(x_min - x_range * 0.05, x_max + x_range * 0.05, 200)
-        y_pred = best_func(x_pred, *best_popt)
-        
-        # 计算残差标准差
-        y_fitted = best_func(all_x, *best_popt)
-        residuals = all_y - y_fitted
-        n = len(all_y)
-        p = len(best_popt)
-        mse = np.sum(residuals**2) / (n - p)
-        std_error = np.sqrt(mse)
-        r_squared = model_results[best_model_name]['r2']
-        model_display_name = model_results[best_model_name]['display_name']
-    
+                k = deg + 1
+                aic = float(n*np.log(rss/n) + 2*k) if rss > 0 else float('inf')
+                r2 = float(model.score(X_poly, all_y))
+                if best is None or aic < best[0]:
+                    best = (aic, deg, poly, model, y_fitted)
+            _, chosen_deg, poly, model, y_fitted = best
+            x_min, x_max = all_x.min(), all_x.max()
+            x_range = x_max - x_min
+            x_pred = np.linspace(x_min - x_range * 0.05, x_max + x_range * 0.05, 200)
+            X_pred_poly = poly.transform(x_pred.reshape(-1, 1))
+            y_pred = model.predict(X_pred_poly)
+            residuals = all_y - y_fitted
+            n = len(all_y)
+            p = chosen_deg + 1
+            mse = np.sum(residuals**2) / (n - p)
+            std_error = np.sqrt(mse)
+            r_squared = model.score(poly.fit_transform(all_x.reshape(-1, 1)), all_y)
+            model_display_name = f"{chosen_deg}次多项式" if not auto_poly else f"自动选择{chosen_deg}次多项式"
     else:
-        # 使用多项式拟合（功率、波长等）
-        poly = PolynomialFeatures(degree=poly_degree)
-        X_poly = poly.fit_transform(all_x.reshape(-1, 1))
-        model = LinearRegression()
-        model.fit(X_poly, all_y)
-        
-        # 生成预测曲线
-        x_min, x_max = all_x.min(), all_x.max()
-        x_range = x_max - x_min
-        x_pred = np.linspace(x_min - x_range * 0.05, x_max + x_range * 0.05, 200)
-        X_pred_poly = poly.transform(x_pred.reshape(-1, 1))
-        y_pred = model.predict(X_pred_poly)
-        
-        # 计算残差标准差
-        y_fitted = model.predict(X_poly)
-        residuals = all_y - y_fitted
-        n = len(all_y)
-        p = poly_degree + 1  # 参数数量
-        mse = np.sum(residuals**2) / (n - p)
-        std_error = np.sqrt(mse)
-        r_squared = model.score(X_poly, all_y)
-        model_display_name = f"{poly_degree}次多项式"
+        per_shell_frames = []
+        shells = [shell_id for shell_id, _ in series_data]
+        colors = ['#000084', '#870A4C', '#95A8D2', '#C3EAB5', '#C5767B',
+                  '#FF6347', '#4169E1', '#32CD32', '#FFD700', '#9370DB']
+        color_range = [colors[i % len(colors)] for i in range(len(shells))]
+        for shell_id, df in series_data:
+            numeric = (
+                df[[CURRENT_COLUMN, metric_column]]
+                .apply(pd.to_numeric, errors="coerce")
+                .dropna(subset=[CURRENT_COLUMN, metric_column])
+            )
+            numeric = _exclude_zero_current(numeric)
+            if numeric.empty:
+                continue
+            sx = numeric[CURRENT_COLUMN].to_numpy(dtype=float)
+            sy = numeric[metric_column].to_numpy(dtype=float)
+            if metric_column == EFFICIENCY_COLUMN:
+                from scipy.optimize import curve_fit
+                from math import log
+                best_model_name = None
+                best_popt = None
+                best_aic = float('inf')
+                best_func = None
+                for model_name, (func, p0, display_name) in EFFICIENCY_MODELS.items():
+                    try:
+                        popt, _ = curve_fit(func, sx, sy, p0=p0, maxfev=10000)
+                        yhat = func(sx, *popt)
+                        resid = sy - yhat
+                        rss = float(np.sum(resid**2))
+                        n_local = len(sy)
+                        k_local = len(popt)
+                        aic = float(n_local*np.log(rss/n_local) + 2*k_local) if rss > 0 else float('inf')
+                        if aic < best_aic:
+                            best_aic = aic
+                            best_model_name = model_name
+                            best_popt = popt
+                            best_func = func
+                    except Exception:
+                        continue
+                if best_func is None:
+                    continue
+                xmin, xmax = sx.min(), sx.max()
+                xr = xmax - xmin
+                x_pred = np.linspace(xmin - xr*0.05, xmax + xr*0.05, 200)
+                y_pred = best_func(x_pred, *best_popt)
+                y_fit = best_func(sx, *best_popt)
+                resid = sy - y_fit
+                n_local = len(sy)
+                p_local = len(best_popt)
+                mse = np.sum(resid**2) / max(1, (n_local - p_local))
+                se = np.sqrt(mse)
+            else:
+                degrees = list(range(1, max_degree + 1)) if auto_poly else [poly_degree]
+                best_local = None
+                for deg in degrees:
+                    poly = PolynomialFeatures(degree=deg)
+                    X_poly = poly.fit_transform(sx.reshape(-1, 1))
+                    model = LinearRegression()
+                    model.fit(X_poly, sy)
+                    y_fit = model.predict(X_poly)
+                    resid = sy - y_fit
+                    rss = float(np.sum(resid**2))
+                    n_local = len(sy)
+                    k_local = deg + 1
+                    aic = float(n_local*np.log(rss/n_local) + 2*k_local) if rss > 0 else float('inf')
+                    if best_local is None or aic < best_local[0]:
+                        best_local = (aic, deg, poly, model, y_fit)
+                _, chosen_deg, poly, model, y_fit = best_local
+                xmin, xmax = sx.min(), sx.max()
+                xr = xmax - xmin
+                x_pred = np.linspace(xmin - xr*0.05, xmax + xr*0.05, 200)
+                X_pred_poly = poly.transform(x_pred.reshape(-1, 1))
+                y_pred = model.predict(X_pred_poly)
+                resid = sy - y_fit
+                n_local = len(sy)
+                p_local = chosen_deg + 1
+                mse = np.sum(resid**2) / max(1, (n_local - p_local))
+                se = np.sqrt(mse)
+            t_val_local = stats.t.ppf(0.975, max(1, n_local - p_local))
+            pred_std = se * np.sqrt(1 + 1/max(1, n_local))
+            y_upper = y_pred + t_val_local * pred_std
+            y_lower = y_pred - t_val_local * pred_std
+            per_shell_frames.append(pd.DataFrame({
+                'shell': shell_id,
+                'current': x_pred,
+                'upper': y_upper,
+                'lower': y_lower,
+                'fitted': y_pred
+            }))
+        if not per_shell_frames:
+            return None
+        band_df = pd.concat(per_shell_frames, ignore_index=True)
+        points_df = pd.DataFrame(shell_points)
+        shells = [shell_id for shell_id, _ in series_data]
+        colors = ['#000084', '#870A4C', '#95A8D2', '#C3EAB5', '#C5767B',
+                  '#FF6347', '#4169E1', '#32CD32', '#FFD700', '#9370DB']
+        color_range = [colors[i % len(colors)] for i in range(len(shells))]
+        band_chart = alt.Chart(band_df).mark_area(opacity=0.15).encode(
+            x=alt.X('current:Q', title='电流(A)'),
+            y=alt.Y('lower:Q', title=metric_label, scale=alt.Scale(zero=False)),
+            y2='upper:Q',
+            color=alt.Color('shell:N', scale=alt.Scale(domain=shells, range=color_range), legend=None)
+        )
+        fit_line = alt.Chart(band_df).mark_line(size=2).encode(
+            x='current:Q',
+            y='fitted:Q',
+            color=alt.Color('shell:N', scale=alt.Scale(domain=shells, range=color_range), title='壳体'),
+        )
+        points_chart = alt.Chart(points_df).mark_circle(size=80, opacity=0.7).encode(
+            x='current:Q',
+            y=alt.Y('value:Q', scale=alt.Scale(zero=False)),
+            color=alt.Color('shell:N', scale=alt.Scale(domain=shells, range=color_range), title='壳体'),
+            tooltip=[
+                alt.Tooltip('shell:N', title='壳体'),
+                alt.Tooltip('current:Q', title='电流(A)', format='.3f'),
+                alt.Tooltip('value:Q', title=metric_label, format='.3f')
+            ]
+        )
+        chart = (band_chart + fit_line + points_chart).properties(
+            width=800,
+            height=500,
+            title={
+                'text': f"{test_type.replace('测试', '')}{metric_label}拟合预测（{len(series_data)}个壳体，分壳体拟合）"
+            }
+        ).configure_axis(
+            labelFontSize=11,
+            titleFontSize=12,
+            grid=True,
+            gridOpacity=0.3
+        ).configure_legend(
+            labelFontSize=11,
+            titleFontSize=12,
+            orient='right'
+        ).configure_title(
+            fontSize=14,
+            anchor='start'
+        )
+        return chart
     
     # 计算95%预测带 (使用t分布)
-    t_val = stats.t.ppf(0.975, n - p)  # 95% confidence
+    t_val = stats.t.ppf(0.975, n - p)
     
     # 对每个预测点计算预测区间
     prediction_std = std_error * np.sqrt(1 + 1/n)
@@ -514,28 +656,55 @@ def _predict_metric_at_current(
     metric_column: str,
     target_current: float,
     degree: int,
-) -> Optional[float]:
-    """Predict metric value at a target current using polynomial fitting."""
+) -> Optional[Dict[str, float]]:
     prepared = _prepare_metric_series(df, metric_column)
     if prepared.empty:
         return None
-
     x = prepared[CURRENT_COLUMN].to_numpy(dtype=float)
     y = prepared[metric_column].to_numpy(dtype=float)
-
+    min_current = float(np.min(x))
+    max_current = float(np.max(x))
+    in_range = min_current <= target_current <= max_current
     if len(x) == 1:
-        return float(y[0])
-
+        value = float(y[0])
+        return {
+            "value": value,
+            "in_range": in_range,
+            "std_error": float("nan"),
+            "ci_lower": value,
+            "ci_upper": value,
+            "min_current": min_current,
+            "max_current": max_current,
+        }
     effective_degree = max(1, min(degree, len(x) - 1))
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", np.RankWarning)
-            coefficients = np.polyfit(x, y, effective_degree)
-        prediction = np.polyval(coefficients, target_current)
+            coeffs, residuals, _, _, _ = np.polyfit(x, y, effective_degree, full=True)
+        value = float(np.polyval(coeffs, target_current))
+        n = len(x)
+        p = effective_degree + 1
+        rss = float(residuals[0]) if residuals.size > 0 else 0.0
+        mse = rss / max(1, (n - p))
+        std_error = float(np.sqrt(mse))
+        t_val = stats.t.ppf(0.975, max(1, n - p)) if _ensure_prediction_libs_loaded() else 1.96
+        prediction_std = std_error * np.sqrt(1 + 1/max(1, n))
+        ci_lower = float(value - t_val * prediction_std)
+        ci_upper = float(value + t_val * prediction_std)
     except (np.linalg.LinAlgError, ValueError):
-        prediction = np.interp(target_current, x, y)
-
-    return float(prediction)
+        value = float(np.interp(target_current, x, y))
+        std_error = float("nan")
+        ci_lower = value
+        ci_upper = value
+    return {
+        "value": value,
+        "in_range": in_range,
+        "std_error": std_error,
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
+        "min_current": min_current,
+        "max_current": max_current,
+    }
 
 
 def compute_power_predictions(
@@ -543,9 +712,7 @@ def compute_power_predictions(
     target_current: float,
     degree: int,
 ) -> List[Dict[str, object]]:
-    """Compute predicted voltage, efficiency, and power for each shell."""
     predictions: List[Dict[str, object]] = []
-
     for shell_id, df in series_data:
         current_values = (
             pd.to_numeric(df.get(CURRENT_COLUMN, pd.Series(dtype=float)), errors="coerce")
@@ -554,40 +721,39 @@ def compute_power_predictions(
         current_values = current_values[current_values.abs() > CURRENT_TOLERANCE]
         if current_values.empty:
             continue
-
-        voltage = _predict_metric_at_current(df, VOLTAGE_COLUMN, target_current, degree)
-        efficiency = _predict_metric_at_current(
-            df,
-            EFFICIENCY_COLUMN,
-            target_current,
-            degree,
-        )
-
-        if voltage is None or efficiency is None:
+        v_pred = _predict_metric_at_current(df, VOLTAGE_COLUMN, target_current, degree)
+        e_pred = _predict_metric_at_current(df, EFFICIENCY_COLUMN, target_current, degree)
+        if v_pred is None or e_pred is None:
             continue
-
         min_current = float(current_values.min())
         max_current = float(current_values.max())
         in_range = min_current <= target_current <= max_current
-
-        efficiency_ratio = float(efficiency)
+        efficiency_ratio = float(e_pred["value"])
         if efficiency_ratio > 1.5:
             efficiency_ratio = efficiency_ratio / 100.0
         efficiency_ratio = max(efficiency_ratio, 0.0)
-
-        predicted_power = target_current * float(voltage) * efficiency_ratio
-
+        predicted_power = target_current * float(v_pred["value"]) * efficiency_ratio
+        v_lower = float(v_pred["ci_lower"]) if not np.isnan(v_pred["std_error"]) else float(v_pred["value"])
+        v_upper = float(v_pred["ci_upper"]) if not np.isnan(v_pred["std_error"]) else float(v_pred["value"])
+        e_lower_ratio = float(e_pred["ci_lower"]) if not np.isnan(e_pred["std_error"]) else float(e_pred["value"])
+        e_upper_ratio = float(e_pred["ci_upper"]) if not np.isnan(e_pred["std_error"]) else float(e_pred["value"])
+        if e_lower_ratio > 1.5:
+            e_lower_ratio = e_lower_ratio / 100.0
+        if e_upper_ratio > 1.5:
+            e_upper_ratio = e_upper_ratio / 100.0
+        p_lower = target_current * v_lower * max(0.0, e_lower_ratio)
+        p_upper = target_current * v_upper * max(0.0, e_upper_ratio)
         predictions.append(
             {
                 "壳体": shell_id,
-                "预测电压(V)": round(float(voltage), 3),
+                "预测电压(V)": round(float(v_pred["value"]), 3),
                 "预测效率(%)": round(efficiency_ratio * 100.0, 3),
                 "预测功率(W)": round(predicted_power, 3),
+                "预测区间(W)": f"{p_lower:.3f}~{p_upper:.3f}",
                 "数据范围(A)": f"{min_current:.3f}~{max_current:.3f}",
                 "目标电流在范围内": "是" if in_range else "否",
             }
         )
-
     return predictions
 
 # Removed unused Bokeh plot_multi_shell_dual_y function - using Altair instead
@@ -2821,6 +2987,18 @@ def main() -> None:
                                     target_current_value: Optional[float] = None
                                     col1, col2 = st.columns([3, 1])
                                     with col1:
+                                        fit_mode = st.radio(
+                                            "拟合模式",
+                                            ["全局", "分壳体"],
+                                            index=0,
+                                            horizontal=True,
+                                            key=f"power_fit_mode_{test_type}"
+                                        )
+                                        auto_poly = st.checkbox(
+                                            "自动选择阶数",
+                                            value=False,
+                                            key=f"power_auto_poly_{test_type}"
+                                        )
                                         poly_degree = st.slider(
                                             "多项式阶数",
                                             min_value=1,
@@ -2860,6 +3038,8 @@ def main() -> None:
                                             "功率(W)",
                                             test_type,
                                             poly_degree=poly_degree,
+                                            fit_mode="global" if fit_mode == "全局" else "per_shell",
+                                            auto_poly=auto_poly,
                                         )
                                         if prediction_chart is not None:
                                             st.altair_chart(prediction_chart, use_container_width=True)
@@ -2925,12 +3105,19 @@ def main() -> None:
                                         st.code("pip install scipy scikit-learn", language="bash")
                                         st.info("安装后重启应用即可使用拟合预测功能")
                                     else:
-                                        # 显示拟合预测图
+                                        fit_mode = st.radio(
+                                            "拟合模式",
+                                            ["全局", "分壳体"],
+                                            index=0,
+                                            horizontal=True,
+                                            key=f"eff_fit_mode_{test_type}"
+                                        )
                                         prediction_chart = plot_multi_shell_prediction(
                                             series_percent,
                                             EFFICIENCY_COLUMN,
                                             "电光效率(%)",
                                             test_type,
+                                            fit_mode="global" if fit_mode == "全局" else "per_shell",
                                         )
                                         if prediction_chart is not None:
                                             st.altair_chart(prediction_chart, use_container_width=True)
@@ -2970,9 +3157,20 @@ def main() -> None:
                                         st.code("pip install scipy scikit-learn", language="bash")
                                         st.info("安装后重启应用即可使用拟合预测功能")
                                     else:
-                                        # 拟合参数设置
                                         col1, col2 = st.columns([3, 1])
                                         with col1:
+                                            fit_mode = st.radio(
+                                                "拟合模式",
+                                                ["全局", "分壳体"],
+                                                index=0,
+                                                horizontal=True,
+                                                key=f"lambda_fit_mode_{test_type}"
+                                            )
+                                            auto_poly = st.checkbox(
+                                                "自动选择阶数",
+                                                value=False,
+                                                key=f"lambda_auto_poly_{test_type}"
+                                            )
                                             poly_degree = st.slider(
                                                 "多项式阶数",
                                                 min_value=1,
@@ -2981,14 +3179,14 @@ def main() -> None:
                                                 key=f"lambda_poly_{test_type}",
                                                 help="选择拟合多项式的阶数（1=线性，2=二次，3=三次...）"
                                             )
-                                        
-                                        # 显示拟合预测图
                                         prediction_chart = plot_multi_shell_prediction(
                                             series,
                                             LAMBDA_COLUMN,
                                             "波长(nm)",
                                             test_type,
                                             poly_degree=poly_degree,
+                                            fit_mode="global" if fit_mode == "全局" else "per_shell",
+                                            auto_poly=auto_poly,
                                         )
                                         if prediction_chart is not None:
                                             st.altair_chart(prediction_chart, use_container_width=True)

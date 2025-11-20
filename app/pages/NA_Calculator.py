@@ -241,6 +241,34 @@ def calculate_length(radius, na, refractive_index):
         return None, None, f"计算长度时发生未知错误：{str(error)}"
 
 
+def calculate_radius(length, na, refractive_index):
+    """根据长度和 NA 计算小孔半径。"""
+    try:
+        if length <= 0:
+            raise ValueError("长度必须大于0")
+        if na > refractive_index + _FLOAT_TOLERANCE:
+            raise ValueError(f"NA值 ({na:.4f}) 不能大于折射率 ({refractive_index:.4f})")
+        if na <= 0:
+            raise ValueError("NA值必须大于0")
+
+        asin_arg = na / refractive_index
+        if not (-1.0 <= asin_arg <= 1.0):
+            raise ValueError(f"计算角度时出错：arcsin 的参数 ({asin_arg:.4f}) 超出范围 [-1, 1]")
+
+        theta1 = math.asin(asin_arg)
+        tan_theta = math.tan(theta1)
+        radius = length * tan_theta
+        if radius < 0:
+            return None, None, "计算出的半径为负，异常"
+
+        full_angle_deg = math.degrees(theta1) * 2
+        return radius, full_angle_deg, None
+    except ValueError as error:
+        return None, None, str(error)
+    except Exception as error:
+        return None, None, f"计算半径时发生未知错误：{str(error)}"
+
+
 def update_angle(na, refractive_index):
     """根据 NA 更新角度显示"""
     try:
@@ -1341,80 +1369,61 @@ def main():
     
         # 计算按钮
         if st.button("🧮 计算", type="primary", use_container_width=True, key="na_calculate"):
-            # 验证输入
             errors = []
-            
-            # 验证半径
-            valid, msg = validate_float(radius, lambda x: x > 0, "必须大于0", "小孔半径")
-            if not valid:
-                errors.append(msg)
-            
-            # 验证折射率
+
+            refractive_index_val = _try_float(refractive_index_display)
             valid, msg = validate_float(refractive_index_display, lambda x: x > 0, "必须大于0", "折射率")
             if not valid:
                 errors.append(msg)
-            
-            # 检查是否至少输入了长度或 NA
-            if not length and not na:
-                errors.append("长度 (L) 或 NA 值必须至少输入一个")
-            
+
+            radius_present = bool(radius)
+            length_present = bool(length)
+            na_present = bool(na)
+
+            provided_count = sum([1 if radius_present else 0, 1 if length_present else 0, 1 if na_present else 0])
+            if provided_count < 2:
+                errors.append("小孔半径 r、长度 L、NA 三项至少填写两项")
+
             if errors:
                 _clear_last_result()
                 for error in errors:
                     st.error(error)
             else:
                 try:
-                    radius_val = _try_float(radius)
-                    if radius_val is None or radius_val <= 0:
-                        raise ValueError("小孔半径必须大于0")
-    
-                    refractive_index_val = refractive_index_value
-    
                     active_input = st.session_state.get("na_active_input")
-    
-                    mode = None
-                    if na and not length:
-                        mode = "na"
-                    elif length and not na:
-                        mode = "length"
-                    elif na and length:
+
+                    target = None
+                    if not na_present:
+                        target = "na"
+                    elif not length_present:
+                        target = "length"
+                    elif not radius_present:
+                        target = "radius"
+                    else:
                         if active_input == "na_input":
-                            mode = "na"
+                            target = "length"
                         elif active_input == "length_input":
-                            mode = "length"
-                        elif na_changed and not length_changed:
-                            mode = "na"
-                        elif length_changed and not na_changed:
-                            mode = "length"
-                        elif na_changed and length_changed:
-                            mode = "na"
+                            target = "na"
                         else:
-                            last_mode = st.session_state.get("na_last_mode")
-                            if last_mode == "na_to_length":
-                                mode = "na"
-                            elif last_mode == "length_to_na":
-                                mode = "length"
-                    if mode is None and (na or length):
-                        mode = "na" if na else "length"
-    
-                    calculate_from_na = mode == "na"
-                    calculate_from_length = mode == "length"
-    
-                    if calculate_from_length:
+                            target = "na"
+
+                    if target == "na":
+                        radius_val = _try_float(radius)
                         length_val = _try_float(length)
-                        if length_val is None or length_val <= 0:
+                        if radius_val is None or radius_val <= 0:
+                            _clear_last_result()
+                            st.error("小孔半径必须大于0")
+                        elif length_val is None or length_val <= 0:
                             _clear_last_result()
                             st.error("长度必须大于0")
                         else:
                             na_val, theta_val, error = calculate_na(radius_val, length_val, refractive_index_val)
-    
                             if error:
                                 _clear_last_result()
                                 st.error(error)
                             else:
                                 na_str = f"{na_val:.4f}"
                                 theta_str = f"{theta_val:.3f}"
-    
                                 st.session_state.na_inputs.update({
                                     "radius": radius,
                                     "length": length,
@@ -1423,7 +1432,6 @@ def main():
                                     "na": na_str,
                                     "theta": theta_str,
                                 })
-    
                                 save_json({
                                     "radius": radius,
                                     "length": length,
@@ -1432,14 +1440,12 @@ def main():
                                     "na": na_str,
                                     "theta": theta_str,
                                 }, INPUT_FILE)
-    
                                 st.session_state.na_calc_state.update({
                                     "last_radius": radius,
                                     "last_length": length,
                                     "last_na": na_str,
                                     "last_refractive_index": refractive_index_display,
                                 })
-    
                                 st.session_state["na_last_mode"] = "length_to_na"
                                 st.session_state["na_last_result"] = {
                                     "na": na_str,
@@ -1453,8 +1459,9 @@ def main():
                                 if not _trigger_rerun():
                                     st.session_state["na_suppress_on_change_for"] = "na_input"
                                     st.session_state["na_input"] = na_str
-    
-                    elif calculate_from_na:
+
+                    elif target == "length":
+                        radius_val = _try_float(radius)
                         na_val = _try_float(na)
                         if na_val is None:
                             _clear_last_result()
@@ -1465,16 +1472,17 @@ def main():
                         elif na_val > refractive_index_val + _FLOAT_TOLERANCE:
                             _clear_last_result()
                             st.error(f"NA 值 ({na_val:.4f}) 不能大于折射率 ({refractive_index_val:.4f})")
+                        elif radius_val is None or radius_val <= 0:
+                            _clear_last_result()
+                            st.error("小孔半径必须大于0")
                         else:
                             length_val, theta_val, error = calculate_length(radius_val, na_val, refractive_index_val)
-    
                             if error:
                                 _clear_last_result()
                                 st.error(error)
                             else:
                                 length_str = f"{length_val:.4f}"
                                 theta_str = f"{theta_val:.3f}"
-    
                                 st.session_state.na_inputs.update({
                                     "radius": radius,
                                     "length": length_str,
@@ -1483,7 +1491,6 @@ def main():
                                     "na": na,
                                     "theta": theta_str,
                                 })
-    
                                 save_json({
                                     "radius": radius,
                                     "length": length_str,
@@ -1492,14 +1499,12 @@ def main():
                                     "na": na,
                                     "theta": theta_str,
                                 }, INPUT_FILE)
-    
                                 st.session_state.na_calc_state.update({
                                     "last_radius": radius,
                                     "last_length": length_str,
                                     "last_na": na,
                                     "last_refractive_index": refractive_index_display,
                                 })
-    
                                 st.session_state["na_last_mode"] = "na_to_length"
                                 st.session_state["na_last_result"] = {
                                     "length": length_str,
@@ -1513,10 +1518,66 @@ def main():
                                 if not _trigger_rerun():
                                     st.session_state["na_suppress_on_change_for"] = "length_input"
                                     st.session_state["length_input"] = length_str
-                    else:
-                        _clear_last_result()
-                        st.error("长度 (L) 或 NA 值必须至少输入一个")
-                
+
+                    elif target == "radius":
+                        length_val = _try_float(length)
+                        na_val = _try_float(na)
+                        if length_val is None or length_val <= 0:
+                            _clear_last_result()
+                            st.error("长度必须大于0")
+                        elif na_val is None:
+                            _clear_last_result()
+                            st.error("NA 值必须是数字")
+                        elif na_val <= 0:
+                            _clear_last_result()
+                            st.error("NA 值必须大于0")
+                        elif na_val > refractive_index_val + _FLOAT_TOLERANCE:
+                            _clear_last_result()
+                            st.error(f"NA 值 ({na_val:.4f}) 不能大于折射率 ({refractive_index_val:.4f})")
+                        else:
+                            radius_val, theta_val, error = calculate_radius(length_val, na_val, refractive_index_val)
+                            if error:
+                                _clear_last_result()
+                                st.error(error)
+                            else:
+                                radius_str = f"{radius_val:.4f}"
+                                theta_str = f"{theta_val:.3f}"
+                                st.session_state.na_inputs.update({
+                                    "radius": radius_str,
+                                    "length": length,
+                                    "material": material,
+                                    "refractive_index": refractive_index_display,
+                                    "na": na,
+                                    "theta": theta_str,
+                                })
+                                save_json({
+                                    "radius": radius_str,
+                                    "length": length,
+                                    "material": material,
+                                    "refractive_index": refractive_index_display,
+                                    "na": na,
+                                    "theta": theta_str,
+                                }, INPUT_FILE)
+                                st.session_state.na_calc_state.update({
+                                    "last_radius": radius_str,
+                                    "last_length": length,
+                                    "last_na": na,
+                                    "last_refractive_index": refractive_index_display,
+                                })
+                                st.session_state["na_last_mode"] = "na_length_to_radius"
+                                st.session_state["na_last_result"] = {
+                                    "radius": radius_str,
+                                    "theta": theta_str,
+                                }
+                                st.session_state["na_active_input"] = None
+                                st.session_state["na_pending_widget_updates"] = {
+                                    "radius_input": radius_str,
+                                    "_suppress": "radius_input",
+                                }
+                                if not _trigger_rerun():
+                                    st.session_state["na_suppress_on_change_for"] = "radius_input"
+                                    st.session_state["radius_input"] = radius_str
+
                 except ValueError as e:
                     _clear_last_result()
                     st.error(f"输入值无效: {str(e)}")
@@ -1541,6 +1602,15 @@ def main():
             with result_col1:
                 st.markdown("### 📏 光纤端面到小孔的距离")
                 st.markdown(f"# {result_data.get('length', '')} mm")
+            with result_col2:
+                st.markdown("### 📐 光纤端面可接受全角")
+                st.markdown(f"# {result_data.get('theta', '')} °")
+        elif result_mode == "na_length_to_radius" and result_data:
+            st.success("✅ 计算完成！")
+            result_col1, result_col2 = st.columns(2)
+            with result_col1:
+                st.markdown("### 🎯 小孔半径")
+                st.markdown(f"# {result_data.get('radius', '')} mm")
             with result_col2:
                 st.markdown("### 📐 光纤端面可接受全角")
                 st.markdown(f"# {result_data.get('theta', '')} °")
