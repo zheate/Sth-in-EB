@@ -10,6 +10,8 @@ import warnings
 import numpy as np
 import altair as alt
 import sys
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 可选依赖：用于拟合预测功能
 stats = None
@@ -57,6 +59,7 @@ PRIMARY_BLUE = "blue"
 
 import pandas as pd
 import streamlit as st
+from utils.data_cleaning import ensure_numeric, drop_zero_current, clean_current_metric
 
 # Bokeh support removed - using Altair for all visualizations
 
@@ -147,13 +150,9 @@ OUTPUT_COLUMNS = [
 
 
 def _exclude_zero_current(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Drop rows where测试电流为0A，避免影响多壳体分析图表。
-    """
     if CURRENT_COLUMN not in df.columns or df.empty:
         return df
-    numeric_current = pd.to_numeric(df[CURRENT_COLUMN], errors="coerce")
-    return df.loc[numeric_current.abs() > CURRENT_TOLERANCE]
+    return drop_zero_current(df, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
 
 (
     SHELL_COLUMN,
@@ -499,19 +498,13 @@ def plot_multi_shell_prediction(
 
 
 def _prepare_metric_series(df: pd.DataFrame, metric_column: str) -> pd.DataFrame:
-    """Clean current/metric pairs and aggregate duplicate current values."""
     if CURRENT_COLUMN not in df.columns or metric_column not in df.columns:
         return pd.DataFrame(columns=[CURRENT_COLUMN, metric_column])
-
-    numeric = (
-        df[[CURRENT_COLUMN, metric_column]]
-        .apply(pd.to_numeric, errors="coerce")
-        .dropna(subset=[CURRENT_COLUMN, metric_column])
-    )
+    numeric = ensure_numeric(df[[CURRENT_COLUMN, metric_column]], [CURRENT_COLUMN, metric_column], strict=False)
+    numeric = numeric.dropna(subset=[CURRENT_COLUMN, metric_column])
     numeric = _exclude_zero_current(numeric)
     if numeric.empty:
         return numeric
-
     aggregated = numeric.groupby(CURRENT_COLUMN, as_index=False).mean()
     return aggregated.sort_values(CURRENT_COLUMN)
 
@@ -706,18 +699,7 @@ def build_multi_shell_chart(
 
 
 def _clean_metric_dataframe(df: pd.DataFrame, metric_column: str) -> pd.DataFrame:
-    numeric = df[[CURRENT_COLUMN, metric_column]].copy()
-    numeric[CURRENT_COLUMN] = pd.to_numeric(
-        numeric[CURRENT_COLUMN],
-        errors="coerce",
-    )
-    numeric[metric_column] = pd.to_numeric(
-        numeric[metric_column],
-        errors="coerce",
-    )
-    numeric = numeric.dropna(subset=[CURRENT_COLUMN, metric_column])
-    numeric = numeric.sort_values(CURRENT_COLUMN)
-    return numeric.rename(columns={CURRENT_COLUMN: "current", metric_column: "value"})
+    return clean_current_metric(df, CURRENT_COLUMN, metric_column)
 
 
 def build_multi_shell_diff_band_charts(
@@ -1254,17 +1236,22 @@ def interpret_chip_folder_input(folder_input: str, default_root: Path = CHIP_DEF
 
     raise FileNotFoundError(f"未找到芯片目�? {folder_input}")
 
-def build_chip_measurement_index(chip_root: Path) -> Dict[str, List[Tuple[Path, Optional[float], float]]]:
-
-    if not chip_root.exists():
-
-        raise FileNotFoundError(f"芯片目录不存在: {chip_root}")
-
-    if not chip_root.is_dir():
-
-        raise NotADirectoryError(f"芯片路�?不是文件夹: {chip_root}")
-
+@st.cache_data(show_spinner=False)
+def build_chip_measurement_index_cached(chip_root_str: str, mtime: float) -> Dict[str, List[Tuple[Path, Optional[float], float]]]:
+    chip_root = Path(chip_root_str)
     return _build_measurement_file_index(chip_root, chip_root.rglob("*.xls*"))
+
+@st.cache_data(show_spinner=False)
+def build_module_measurement_index_cached(folder_str: str, mtime: float) -> Dict[str, List[Tuple[Path, Optional[float], float]]]:
+    test_folder = Path(folder_str)
+    return _build_measurement_file_index(test_folder, test_folder.glob("*.xls*"))
+
+def build_chip_measurement_index(chip_root: Path) -> Dict[str, List[Tuple[Path, Optional[float], float]]]:
+    if not chip_root.exists():
+        raise FileNotFoundError(f"芯片目录不存在: {chip_root}")
+    if not chip_root.is_dir():
+        raise NotADirectoryError(f"芯片路�?不是文件夹: {chip_root}")
+    return build_chip_measurement_index_cached(str(chip_root), chip_root.stat().st_mtime)
 
 def find_chip_measurement_file(
 
@@ -1491,16 +1478,10 @@ def _build_measurement_file_index(
     return index
 
 def find_measurement_file(
-
     test_folder: Path,
-
     token: str,
-
     *,
-
-    index: Optional[Dict[str, List[Tuple[Path, Optional[float], float]]]] = None,
-
-) -> Tuple[Path, bool, float]:
+    index: Optional[Dict[str, List[Tuple[Path, Optional[float], float]]]] = None,) -> Tuple[Path, bool, float]:
 
     lookup = index if index is not None else _build_measurement_file_index(test_folder)
 
@@ -1589,7 +1570,7 @@ def read_excel_with_engine(file_path: Path, sheet_name: Union[int, str] = 0, **k
 
         try:
 
-            return pd.read_csv(file_path, sep=None, engine="python", encoding=encoding, **kwargs)
+            return pd.read_csv(file_path, sep=None, engine="python", encoding=encoding, on_bad_lines='skip', **kwargs)
 
         except (UnicodeDecodeError, ValueError) as csv_exc:
 
@@ -1826,6 +1807,8 @@ def clear_extraction_caches() -> None:
     _extract_generic_excel_cached.clear()
     _extract_lvi_data_cached.clear()
     _extract_rth_data_cached.clear()
+    build_chip_measurement_index_cached.clear()
+    build_module_measurement_index_cached.clear()
 
 def show_toast(message: str, icon: str = "ℹ️", duration: int = 2000) -> None:
     """显示自定义持续时间的toast消息
@@ -1979,6 +1962,7 @@ def render_extraction_results_section(
                 ),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"download_button_{download_counter}",
+                use_container_width=True,
             )
 
         if errors or infos:
@@ -2011,7 +1995,7 @@ def main() -> None:
         # 分析功能区
         st.markdown("### 📊 数据分析")
         
-        if st.button("📈 单壳体分析", width='stretch'):
+        if st.button("📈 单壳体分析", use_container_width=True):
             st.session_state.show_single_analysis = True
             st.session_state.show_multi_power = False
             st.session_state.show_multi_station = False
@@ -2019,7 +2003,7 @@ def main() -> None:
             st.query_params.update({"section": "single"})
             st.session_state.pending_scroll_target = "single"
         
-        if st.button("📉 多壳体分析", width='stretch'):
+        if st.button("📉 多壳体分析", use_container_width=True):
             st.session_state.show_multi_power = True
             st.session_state.show_single_analysis = False
             st.session_state.show_multi_station = False
@@ -2027,7 +2011,7 @@ def main() -> None:
             st.query_params.update({"section": "multi_power"})
             st.session_state.pending_scroll_target = "multi_power"
         
-        if st.button("🔄 多站别分析", width='stretch'):
+        if st.button("🔄 多站别分析", use_container_width=True):
             st.session_state.show_multi_station = True
             st.session_state.show_single_analysis = False
             st.session_state.show_multi_power = False
@@ -2035,7 +2019,7 @@ def main() -> None:
             st.query_params.update({"section": "multi_station"})
             st.session_state.pending_scroll_target = "multi_station"
         
-        if st.button("📦 箱线图分析", width='stretch'):
+        if st.button("📦 箱线图分析", use_container_width=True):
             st.session_state.show_boxplot = True
             st.session_state.show_single_analysis = False
             st.session_state.show_multi_power = False
@@ -2296,6 +2280,82 @@ def main() -> None:
             status_text = st.empty()
         
         progress_text.markdown(f"**正在处理 {total_entries} 个壳体...**")
+
+        def do_measurement(entry_id: str, test_category: str, measurement_label: str, file_path: Path, file_mtime: float, multiple_found: bool, context_label: str):
+            try:
+                if measurement_label == "LVI":
+                    extracted, missing_currents, lvi_full = extract_lvi_data(
+                        file_path=file_path,
+                        current_points=current_points,
+                        mtime=file_mtime,
+                    )
+                    selected_subset = extracted if current_points else None
+                    info_parts = []
+                    if missing_currents:
+                        info_parts.append(f"{context_label}: 未找到电流点 {missing_currents}")
+                    tagged = extracted.copy()
+                    tagged.insert(0, TEST_TYPE_COLUMN, test_category)
+                    tagged.insert(0, SHELL_COLUMN, entry_id)
+                    tagged = align_output_columns(tagged)
+                    return {
+                        "tagged": tagged,
+                        "lvi": (entry_id, test_category, lvi_full, selected_subset),
+                        "rth": None,
+                        "info": [f"找到文件: {context_label} -> {file_path.name}"] + info_parts,
+                        "multiple": multiple_found,
+                        "context": context_label,
+                        "error": None,
+                    }
+                elif measurement_label == "Rth":
+                    extracted, missing_currents, rth_full = extract_rth_data(
+                        file_path=file_path,
+                        current_points=current_points,
+                        mtime=file_mtime,
+                    )
+                    info_parts = []
+                    if missing_currents:
+                        info_parts.append(f"{context_label}: 未找到电流点 {missing_currents}")
+                    baseline_current = extracted.attrs.get("lambda_baseline_current")
+                    if baseline_current is not None and abs(baseline_current - 2.0) > CURRENT_TOLERANCE:
+                        info_parts.append(f"{context_label}: 波长shift基准使用 {baseline_current:.3f}A")
+                    tagged = extracted.copy()
+                    tagged.insert(0, TEST_TYPE_COLUMN, test_category)
+                    tagged.insert(0, SHELL_COLUMN, entry_id)
+                    tagged = align_output_columns(tagged)
+                    return {
+                        "tagged": tagged,
+                        "lvi": None,
+                        "rth": (entry_id, test_category, rth_full),
+                        "info": [f"找到文件: {context_label} -> {file_path.name}"] + info_parts,
+                        "multiple": multiple_found,
+                        "context": context_label,
+                        "error": None,
+                    }
+                else:
+                    extracted = extract_generic_excel(file_path, mtime=file_mtime)
+                    tagged = extracted.copy()
+                    tagged.insert(0, TEST_TYPE_COLUMN, test_category)
+                    tagged.insert(0, SHELL_COLUMN, entry_id)
+                    tagged = align_output_columns(tagged)
+                    return {
+                        "tagged": tagged,
+                        "lvi": None,
+                        "rth": None,
+                        "info": [f"找到文件: {context_label} -> {file_path.name}"],
+                        "multiple": multiple_found,
+                        "context": context_label,
+                        "error": None,
+                    }
+            except Exception as exc:
+                return {
+                    "tagged": None,
+                    "lvi": None,
+                    "rth": None,
+                    "info": [],
+                    "multiple": multiple_found,
+                    "context": context_label,
+                    "error": f"{context_label}: {exc}",
+                }
         
         def handle_measurement(entry_id: str, test_category: str, measurement_label: str, file_path: Path, file_mtime: float, multiple_found: bool, context_label: str) -> None:
             info_messages.append(f"找到文件: {context_label} -> {file_path.name}")
@@ -2388,122 +2448,129 @@ def main() -> None:
                     f"{context_label}: 使用最新文件 {file_path.name}"
                 )
 
-        for idx, entry in enumerate(folder_entries, start=1):
-            if extraction_mode == MODULE_MODE:
-                try:
-                    base_path = interpret_folder_input(entry)
-
-                    info_messages.append(f"解析路径: {entry} -> {base_path} (存在: {base_path.exists()})")
-
-                except ValueError as exc:
-                    error_messages.append(f"{entry}: {exc}")
-                    progress_bar.progress(min(idx / total_entries, 1.0))
-                    status_text.text(f"处理中: {idx}/{total_entries} - {entry_label}{entry} (路径错误)")
-                    continue
-
-                for test_category in selected_tests:
+        executor_workers = max(4, min(16, (os.cpu_count() or 4) * 2))
+        futures = []
+        total_tasks = 0
+        with ThreadPoolExecutor(max_workers=executor_workers) as executor:
+            for idx, entry in enumerate(folder_entries, start=1):
+                if extraction_mode == MODULE_MODE:
                     try:
-                        test_folder = resolve_test_folder(base_path, test_category)
+                        base_path = interpret_folder_input(entry)
+                        info_messages.append(f"解析路径: {entry} -> {base_path} (存在: {base_path.exists()})")
+                    except ValueError as exc:
+                        error_messages.append(f"{entry}: {exc}")
+                        progress_bar.progress(min(idx / total_entries, 1.0))
+                        status_text.text(f"处理中: {idx}/{total_entries} - {entry_label}{entry} (路径错误)")
+                        continue
 
-                        files_in_folder = list(test_folder.glob("*.xls*"))
-                        info_messages.append(f"测试文件夹: {test_folder}, 包含 {len(files_in_folder)} 个Excel文件")
-                        if files_in_folder:
-                            info_messages.append(f"  文件列表: {', '.join([f.name for f in files_in_folder[:5]])}")
-                        measurement_index = _build_measurement_file_index(test_folder, files_in_folder)
+                    for test_category in selected_tests:
+                        try:
+                            test_folder = resolve_test_folder(base_path, test_category)
+                            files_in_folder = list(test_folder.glob("*.xls*"))
+                            info_messages.append(f"测试文件夹: {test_folder}, 包含 {len(files_in_folder)} 个Excel文件")
+                            if files_in_folder:
+                                info_messages.append(f"  文件列表: {', '.join([f.name for f in files_in_folder[:5]])}")
+                            measurement_index = build_module_measurement_index_cached(str(test_folder), test_folder.stat().st_mtime)
+                        except FileNotFoundError as exc:
+                            error_messages.append(f"{entry}/{test_category}: {exc}")
+                            continue
 
-                    except FileNotFoundError as exc:
-                        error_messages.append(f"{entry}/{test_category}: {exc}")
+                        for measurement_label in selected_measurements:
+                            token = MEASUREMENT_OPTIONS[measurement_label]
+                            try:
+                                file_path, multiple_found, file_mtime = find_measurement_file(
+                                    test_folder,
+                                    token,
+                                    index=measurement_index,
+                                )
+                            except (FileNotFoundError, KeyError, ValueError) as exc:
+                                error_messages.append(f"{entry}/{test_category}/{measurement_label}: {exc}")
+                                continue
+                            except ImportError as exc:
+                                error_messages.append(str(exc))
+                                continue
+                            except Exception as exc:
+                                error_messages.append(f"{entry}/{test_category}/{measurement_label}: {exc}")
+                                continue
+
+                            futures.append(executor.submit(
+                                do_measurement,
+                                entry,
+                                test_category,
+                                measurement_label,
+                                file_path,
+                                file_mtime,
+                                multiple_found,
+                                f"{entry}/{test_category}/{measurement_label}",
+                            ))
+                            total_tasks += 1
+                else:
+                    try:
+                        chip_folder = interpret_chip_folder_input(entry)
+                        info_messages.append(f"解析芯片路径: {entry} -> {chip_folder} (存在: {chip_folder.exists()})")
+                    except (ValueError, FileNotFoundError, NotADirectoryError) as exc:
+                        error_messages.append(f"{entry}: {exc}")
+                        progress_bar.progress(min(idx / total_entries, 1.0))
+                        status_text.text(f"处理中: {idx}/{total_entries} - {entry_label}{entry} (路径错误)")
+                        continue
+
+                    try:
+                        measurement_index = build_chip_measurement_index(chip_folder)
+                    except (FileNotFoundError, NotADirectoryError) as exc:
+                        error_messages.append(f"{entry}: {exc}")
                         continue
 
                     for measurement_label in selected_measurements:
                         token = MEASUREMENT_OPTIONS[measurement_label]
-
                         try:
-                            file_path, multiple_found, file_mtime = find_measurement_file(
-                                test_folder,
+                            file_path, multiple_found, file_mtime = find_chip_measurement_file(
+                                chip_folder,
                                 token,
                                 index=measurement_index,
                             )
-                        except (FileNotFoundError, KeyError, ValueError) as exc:
-
-                            error_messages.append(f"{entry}/{test_category}/{measurement_label}: {exc}")
-
+                        except FileNotFoundError as exc:
+                            error_messages.append(f"{entry}/{measurement_label}: {exc}")
                             continue
 
-                        except ImportError as exc:
-
-                            error_messages.append(str(exc))
-
-                            continue
-
-                        except Exception as exc:
-
-                            error_messages.append(f"{entry}/{test_category}/{measurement_label}: {exc}")
-
-                            continue
-
-                        handle_measurement(
+                        futures.append(executor.submit(
+                            do_measurement,
                             entry,
-                            test_category,
+                            CHIP_TEST_CATEGORY,
                             measurement_label,
                             file_path,
                             file_mtime,
                             multiple_found,
-                            f"{entry}/{test_category}/{measurement_label}",
-                        )
-
+                            f"{entry}/{measurement_label}",
+                        ))
+                        total_tasks += 1
+        completed = 0
+        for fut in as_completed(futures):
+            res = fut.result()
+            if res.get("error"):
+                error_messages.append(res["error"])
             else:
-                try:
-                    chip_folder = interpret_chip_folder_input(entry)
-                    info_messages.append(f"解析芯片路径: {entry} -> {chip_folder} (存在: {chip_folder.exists()})")
-                except (ValueError, FileNotFoundError, NotADirectoryError) as exc:
-                    error_messages.append(f"{entry}: {exc}")
-                    progress_bar.progress(min(idx / total_entries, 1.0))
-                    status_text.text(f"处理中: {idx}/{total_entries} - {entry_label}{entry} (路径错误)")
-                    continue
+                tagged = res.get("tagged")
+                if tagged is not None:
+                    combined_frames.append(tagged)
+                info_messages.extend(res.get("info", []))
+                if res.get("multiple"):
+                    info_messages.append(f"{res.get('context')}: 使用最新文件")
+                lvi_tuple = res.get("lvi")
+                if lvi_tuple:
+                    e_id, t_cat, lvi_full, selected_subset = lvi_tuple
+                    lvi_plot_sources[(e_id, t_cat)] = (lvi_full, selected_subset)
+                rth_tuple = res.get("rth")
+                if rth_tuple:
+                    e_id, t_cat, rth_full = rth_tuple
+                    rth_plot_sources[(e_id, t_cat)] = rth_full
+            completed += 1
+            progress_bar.progress(min(completed / max(1, total_tasks), 1.0))
+            status_text.text(f"已完成任务 {completed}/{total_tasks}")
 
-                try:
-                    measurement_index = build_chip_measurement_index(chip_folder)
-                except (FileNotFoundError, NotADirectoryError) as exc:
-                    error_messages.append(f"{entry}: {exc}")
-                    continue
-
-                for measurement_label in selected_measurements:
-                    token = MEASUREMENT_OPTIONS[measurement_label]
-
-                    try:
-                        file_path, multiple_found, file_mtime = find_chip_measurement_file(
-                            chip_folder,
-                            token,
-                            index=measurement_index,
-                        )
-                    except FileNotFoundError as exc:
-                        error_messages.append(f"{entry}/{measurement_label}: {exc}")
-                        continue
-
-                    handle_measurement(
-                        entry,
-                        CHIP_TEST_CATEGORY,
-                        measurement_label,
-                        file_path,
-                        file_mtime,
-                        multiple_found,
-                        f"{entry}/{measurement_label}",
-                    )
-
-            progress_bar.progress(min(idx / total_entries, 1.0))
-            status_text.text(f"已完成 {idx}/{total_entries} - {entry}")
-
-        # 更新进度
-            progress_bar.progress(min(idx / total_entries, 1.0))
-            status_text.text(f"已完成: {idx}/{total_entries} - {entry}")
-        
-        # 清除进度显示
         progress_bar.empty()
         progress_text.empty()
         status_text.empty()
-        
-        # 保存数据到session_state，避免切换时丢失
+
         st.session_state.lvi_plot_sources = lvi_plot_sources
         st.session_state.rth_plot_sources = rth_plot_sources
         
@@ -2927,6 +2994,529 @@ def main() -> None:
                                             st.altair_chart(prediction_chart, use_container_width=True)
                                         else:
                                             st.info("无法生成预测图表")
+
+    # 多站别分析
+    if st.session_state.get('show_multi_station', False):
+        lvi_plot_sources = st.session_state.get('lvi_plot_sources')
+        if lvi_plot_sources:
+            st.markdown('---')
+            st.markdown('<div id="multi_station"></div>', unsafe_allow_html=True)
+            trigger_scroll_if_needed("multi_station")
+            st.subheader("📊 多站别分析")
+
+            available_shells = sorted({shell_id for (shell_id, _) in lvi_plot_sources.keys()})
+            rth_plot_sources = st.session_state.get('rth_plot_sources', {})
+
+            if len(available_shells) > 1:
+                st.markdown("**📊 所有壳体平均值变化分析**")
+                all_shells_data: List[pd.DataFrame] = []
+
+                for shell_id in available_shells:
+                    for (sid, test_type), (df_full, _) in lvi_plot_sources.items():
+                        if sid == shell_id and df_full is not None and not df_full.empty:
+                            temp_df = df_full.copy()
+                            temp_df[TEST_TYPE_COLUMN] = test_type.replace("测试", "")
+                            temp_df[SHELL_COLUMN] = shell_id
+                            all_shells_data.append(temp_df)
+
+                    if rth_plot_sources:
+                        for (sid, test_type), rth_df in rth_plot_sources.items():
+                            if sid == shell_id and rth_df is not None and not rth_df.empty:
+                                for idx, lvi_df in enumerate(all_shells_data):
+                                    if (
+                                        lvi_df[SHELL_COLUMN].iloc[0] == shell_id
+                                        and lvi_df[TEST_TYPE_COLUMN].iloc[0] == test_type.replace("测试", "")
+                                    ):
+                                        rth_temp = rth_df.copy()
+                                        rth_temp[TEST_TYPE_COLUMN] = test_type.replace("测试", "")
+                                        rth_temp[SHELL_COLUMN] = shell_id
+                                        merged = pd.merge(
+                                            lvi_df,
+                                            rth_temp[
+                                                [
+                                                    CURRENT_COLUMN,
+                                                    LAMBDA_COLUMN,
+                                                    SHIFT_COLUMN,
+                                                    TEST_TYPE_COLUMN,
+                                                    SHELL_COLUMN,
+                                                ]
+                                            ],
+                                            on=[CURRENT_COLUMN, TEST_TYPE_COLUMN, SHELL_COLUMN],
+                                            how="outer",
+                                        )
+                                        all_shells_data[idx] = merged
+                                        break
+
+                if all_shells_data:
+                    all_shells_df = pd.concat(all_shells_data, ignore_index=True)
+                    agg_dict: Dict[str, str] = {
+                        POWER_COLUMN: 'mean',
+                        EFFICIENCY_COLUMN: 'mean',
+                        VOLTAGE_COLUMN: 'mean',
+                    }
+                    if LAMBDA_COLUMN in all_shells_df.columns:
+                        agg_dict[LAMBDA_COLUMN] = 'mean'
+                    if SHIFT_COLUMN in all_shells_df.columns:
+                        agg_dict[SHIFT_COLUMN] = 'mean'
+
+                    avg_by_station = all_shells_df.groupby(TEST_TYPE_COLUMN).agg(agg_dict).reset_index()
+                    ordered_avg_types = [
+                        t for t in SANITIZED_PLOT_ORDER if t in avg_by_station[TEST_TYPE_COLUMN].unique()
+                    ]
+
+                    avg_change_data: List[Dict[str, Union[str, float]]] = []
+                    for idx in range(len(ordered_avg_types) - 1):
+                        from_type = ordered_avg_types[idx]
+                        to_type = ordered_avg_types[idx + 1]
+                        from_row = avg_by_station[avg_by_station[TEST_TYPE_COLUMN] == from_type]
+                        to_row = avg_by_station[avg_by_station[TEST_TYPE_COLUMN] == to_type]
+                        if from_row.empty or to_row.empty:
+                            continue
+
+                        avg_change_row: Dict[str, Union[str, float]] = {"变化": f"{from_type} -> {to_type}"}
+                        power_from = from_row[POWER_COLUMN].iloc[0]
+                        power_to = to_row[POWER_COLUMN].iloc[0]
+                        if pd.notna(power_from) and pd.notna(power_to):
+                            avg_change_row["功率变化(W)"] = power_to - power_from
+
+                        eff_from = from_row[EFFICIENCY_COLUMN].iloc[0] * 100
+                        eff_to = to_row[EFFICIENCY_COLUMN].iloc[0] * 100
+                        if pd.notna(eff_from) and pd.notna(eff_to):
+                            avg_change_row["效率变化(%)"] = eff_to - eff_from
+
+                        voltage_from = from_row[VOLTAGE_COLUMN].iloc[0]
+                        voltage_to = to_row[VOLTAGE_COLUMN].iloc[0]
+                        if pd.notna(voltage_from) and pd.notna(voltage_to):
+                            avg_change_row["电压变化(V)"] = voltage_to - voltage_from
+
+                        if LAMBDA_COLUMN in avg_by_station.columns:
+                            lambda_from = from_row[LAMBDA_COLUMN].iloc[0]
+                            lambda_to = to_row[LAMBDA_COLUMN].iloc[0]
+                            if pd.notna(lambda_from) and pd.notna(lambda_to):
+                                avg_change_row["波长变化(nm)"] = lambda_to - lambda_from
+
+                        if SHIFT_COLUMN in avg_by_station.columns:
+                            shift_from = from_row[SHIFT_COLUMN].iloc[0]
+                            shift_to = to_row[SHIFT_COLUMN].iloc[0]
+                            if pd.notna(shift_from) and pd.notna(shift_to):
+                                avg_change_row["Shift变化(nm)"] = shift_to - shift_from
+
+                        avg_change_data.append(avg_change_row)
+
+                    if avg_change_data:
+                        avg_change_df = pd.DataFrame(avg_change_data)
+                        numeric_cols = [col for col in avg_change_df.columns if col != "变化"]
+                        for column in numeric_cols:
+                            avg_change_df[column] = avg_change_df[column].apply(
+                                lambda value: 0.0
+                                if pd.notna(value) and abs(round(value, 3)) < 0.001
+                                else round(value, 3) if pd.notna(value) else value
+                            )
+
+                        for _, row in avg_change_df.iterrows():
+                            st.markdown(f"**{row['变化']}**")
+                            if not numeric_cols:
+                                continue
+                            cols = st.columns(len(numeric_cols))
+                            for idx, column in enumerate(numeric_cols):
+                                if column not in row or pd.isna(row[column]):
+                                    continue
+                                value = row[column]
+                                if "(W)" in column:
+                                    unit = "W"
+                                    label = column.replace("(W)", "").strip()
+                                elif "(%)" in column:
+                                    unit = "%"
+                                    label = column.replace("(%)", "").strip()
+                                elif "(V)" in column:
+                                    unit = "V"
+                                    label = column.replace("(V)", "").strip()
+                                elif "(nm)" in column:
+                                    unit = "nm"
+                                    label = column.replace("(nm)", "").strip()
+                                else:
+                                    unit = ""
+                                    label = column
+                                with cols[idx]:
+                                    st.metric(
+                                        label=label,
+                                        value=f"{abs(value):.3f}{unit}",
+                                        delta=f"{value:+.3f}{unit}",
+                                        delta_color="normal",
+                                    )
+                            st.markdown("---")
+
+                st.markdown("---")
+
+            extraction_state = st.session_state.get(EXTRACTION_STATE_KEY)
+            result_df_for_analysis = None
+            if extraction_state and extraction_state.get("result_df") is not None:
+                result_df_for_analysis = extraction_state["result_df"]
+
+            analysis_columns = [
+                POWER_COLUMN,
+                VOLTAGE_COLUMN,
+                EFFICIENCY_COLUMN,
+                LAMBDA_COLUMN,
+                SHIFT_COLUMN,
+            ]
+            available_metrics = (
+                [column for column in analysis_columns if column in result_df_for_analysis.columns]
+                if result_df_for_analysis is not None
+                else []
+            )
+            per_type_records: List[Dict[str, Any]] = []
+
+            if result_df_for_analysis is not None and not result_df_for_analysis.empty:
+                if available_metrics and TEST_TYPE_COLUMN in result_df_for_analysis.columns:
+                    for test_type, group in result_df_for_analysis.groupby(TEST_TYPE_COLUMN):
+                        for column in available_metrics:
+                            series = pd.to_numeric(group[column], errors="coerce").dropna()
+                            if series.empty:
+                                continue
+                            per_type_records.append(
+                                {
+                                    "站别": test_type,
+                                    "指标": column,
+                                    "数量": int(series.count()),
+                                    "均值": round(series.mean(), 3),
+                                    "中位数": round(series.median(), 3),
+                                    "标准差": round(series.std(ddof=1), 3) if series.count() > 1 else 0.0,
+                                    "最小值": round(series.min(), 3),
+                                    "最大值": round(series.max(), 3),
+                                }
+                            )
+
+                if available_metrics:
+                    with st.expander("📊 指标分析", expanded=True):
+                        if TEST_TYPE_COLUMN in result_df_for_analysis.columns:
+                            available_test_types = [
+                                t for t in SANITIZED_PLOT_ORDER if t in result_df_for_analysis[TEST_TYPE_COLUMN].unique()
+                            ]
+                            if available_test_types:
+                                test_type_options = ["全部"] + available_test_types
+                                default_index = len(test_type_options) - 1
+                                selected_test_type = st.selectbox(
+                                    "选择站别进行统计",
+                                    options=test_type_options,
+                                    index=default_index,
+                                    key="stats_test_type_select",
+                                )
+                                if selected_test_type == "全部":
+                                    numeric_data = result_df_for_analysis[available_metrics].apply(
+                                        pd.to_numeric, errors="coerce"
+                                    )
+                                    st.markdown("### 📈 全部数据统计")
+                                else:
+                                    selected_test_df = result_df_for_analysis[
+                                        result_df_for_analysis[TEST_TYPE_COLUMN] == selected_test_type
+                                    ]
+                                    numeric_data = selected_test_df[available_metrics].apply(pd.to_numeric, errors="coerce")
+                                    st.markdown(f"### 📈 {selected_test_type} 站数据统计")
+                            else:
+                                numeric_data = result_df_for_analysis[available_metrics].apply(
+                                    pd.to_numeric, errors="coerce"
+                                )
+                                st.markdown("### 📈 全部数据统计")
+                        else:
+                            numeric_data = result_df_for_analysis[available_metrics].apply(pd.to_numeric, errors="coerce")
+                            st.markdown("### 📈 全部数据统计")
+
+                        counts = numeric_data.notna().sum()
+                        overall_summary = pd.DataFrame(
+                            {
+                                "数量": counts,
+                                "均值": numeric_data.mean(),
+                                "中位数": numeric_data.median(),
+                                "标准差": numeric_data.std(ddof=1),
+                                "最小值": numeric_data.min(),
+                                "最大值": numeric_data.max(),
+                            }
+                        )
+                        overall_summary["数量"] = overall_summary["数量"].astype("Int64")
+                        overall_summary["标准差"] = overall_summary["标准差"].fillna(0.0)
+                        summary_cols = ["均值", "中位数", "标准差", "最小值", "最大值"]
+                        overall_summary[summary_cols] = overall_summary[summary_cols].round(3)
+                        overall_summary.index.name = "指标"
+                        styled_summary = overall_summary.style.format(
+                            {col: "{:.3f}" for col in summary_cols}
+                        )
+                        st.dataframe(styled_summary, use_container_width=True)
+                else:
+                    st.info("按站别统计缺少有效的数值列")
+
+                if per_type_records:
+                    with st.expander("📋 按站别详细统计", expanded=False):
+                        ordered_cols = ["站别", "指标", "数量", "均值", "中位数", "标准差", "最小值", "最大值"]
+                        per_type_df = pd.DataFrame(per_type_records)[ordered_cols]
+                        unique_metrics = per_type_df["指标"].unique()
+
+                        for metric in unique_metrics:
+                            metric_data = per_type_df[per_type_df["指标"] == metric].copy()
+                            metric_data = metric_data.drop(columns=["指标"])
+                            metric_data["__order"] = metric_data["站别"].map(SANITIZED_ORDER_LOOKUP)
+                            metric_data = metric_data.sort_values("__order").drop(columns=["__order"])
+                            metric_data = metric_data.set_index("站别")
+
+                            st.markdown(f"#### 🔹 {metric}")
+                            styled_metric = metric_data.style.format(
+                                {
+                                    "均值": "{:.3f}",
+                                    "中位数": "{:.3f}",
+                                    "标准差": "{:.3f}",
+                                    "最小值": "{:.3f}",
+                                    "最大值": "{:.3f}",
+                                }
+                            )
+                            st.dataframe(styled_metric, use_container_width=True)
+
+                            if len(metric_data) > 1:
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.caption("均值对比")
+                                    st.bar_chart(metric_data["均值"], use_container_width=True)
+                                with col2:
+                                    st.caption("标准差对比")
+                                    st.bar_chart(metric_data["标准差"], use_container_width=True)
+            else:
+                st.info("无可用数据")
+        else:
+            st.info("请先抽取数据")
+
+    # 箱线图分析
+    if st.session_state.get('show_boxplot', False):
+        lvi_plot_sources = st.session_state.get('lvi_plot_sources')
+        if lvi_plot_sources:
+            st.markdown('---')
+            st.markdown('<div id="boxplot"></div>', unsafe_allow_html=True)
+            trigger_scroll_if_needed("boxplot")
+            st.subheader("📊 箱线图分析")
+
+            extraction_state = st.session_state.get(EXTRACTION_STATE_KEY)
+            selected_currents: List[float] = []
+            if extraction_state:
+                selected_currents = extraction_state.get("current_points", []) or []
+
+            all_data_for_boxplot: List[pd.DataFrame] = []
+            for (shell_id, test_type), (df_full, df_selected) in lvi_plot_sources.items():
+                if df_full is None or df_full.empty or CURRENT_COLUMN not in df_full.columns:
+                    continue
+
+                if df_selected is not None and not df_selected.empty:
+                    base_df = df_selected.copy()
+                else:
+                    base_df = df_full.copy()
+                    if selected_currents:
+                        filtered_mask = pd.Series(False, index=base_df.index)
+                        for current in selected_currents:
+                            filtered_mask |= (base_df[CURRENT_COLUMN] - current).abs() <= CURRENT_TOLERANCE
+                        filtered_df = base_df.loc[filtered_mask]
+                        if not filtered_df.empty:
+                            base_df = filtered_df.copy()
+                        else:
+                            max_current = base_df[CURRENT_COLUMN].max()
+                            if pd.notna(max_current):
+                                base_df = base_df.loc[(base_df[CURRENT_COLUMN] - max_current).abs() <= CURRENT_TOLERANCE]
+                    else:
+                        max_current = base_df[CURRENT_COLUMN].max()
+                        if pd.notna(max_current):
+                            base_df = base_df.loc[(base_df[CURRENT_COLUMN] - max_current).abs() <= CURRENT_TOLERANCE]
+
+                if base_df.empty:
+                    continue
+
+                tagged = base_df.copy()
+                tagged[TEST_TYPE_COLUMN] = test_type.replace("测试", "")
+                tagged[SHELL_COLUMN] = shell_id
+                all_data_for_boxplot.append(tagged)
+
+            if all_data_for_boxplot:
+                combined_boxplot_df = pd.concat(all_data_for_boxplot, ignore_index=True)
+                rth_plot_sources = st.session_state.get('rth_plot_sources', {})
+                if rth_plot_sources:
+                    rth_data_list: List[pd.DataFrame] = []
+                    for (shell_id, test_type), rth_df in rth_plot_sources.items():
+                        if rth_df is None or rth_df.empty or CURRENT_COLUMN not in rth_df.columns:
+                            continue
+                        rth_temp = rth_df.copy()
+                        if selected_currents:
+                            mask = pd.Series(False, index=rth_temp.index)
+                            for current in selected_currents:
+                                mask |= (rth_temp[CURRENT_COLUMN] - current).abs() <= CURRENT_TOLERANCE
+                            filtered_rth = rth_temp.loc[mask]
+                            if filtered_rth.empty:
+                                rth_max = rth_temp[CURRENT_COLUMN].max()
+                                if pd.notna(rth_max):
+                                    filtered_rth = rth_temp.loc[(rth_temp[CURRENT_COLUMN] - rth_max).abs() <= CURRENT_TOLERANCE]
+                            rth_temp = filtered_rth
+                        else:
+                            rth_max = rth_temp[CURRENT_COLUMN].max()
+                            if pd.notna(rth_max):
+                                rth_temp = rth_temp.loc[(rth_temp[CURRENT_COLUMN] - rth_max).abs() <= CURRENT_TOLERANCE]
+
+                        if rth_temp.empty:
+                            continue
+
+                        rth_temp[TEST_TYPE_COLUMN] = test_type.replace("测试", "")
+                        rth_temp[SHELL_COLUMN] = shell_id
+                        keep_cols = [SHELL_COLUMN, TEST_TYPE_COLUMN, CURRENT_COLUMN]
+                        if LAMBDA_COLUMN in rth_temp.columns:
+                            keep_cols.append(LAMBDA_COLUMN)
+                        if SHIFT_COLUMN in rth_temp.columns:
+                            keep_cols.append(SHIFT_COLUMN)
+                        rth_data_list.append(rth_temp[keep_cols])
+
+                    if rth_data_list:
+                        rth_combined = pd.concat(rth_data_list, ignore_index=True)
+                        cols_to_drop = [col for col in (LAMBDA_COLUMN, SHIFT_COLUMN) if col in combined_boxplot_df.columns]
+                        if cols_to_drop:
+                            combined_boxplot_df = combined_boxplot_df.drop(columns=cols_to_drop)
+                        combined_boxplot_df = pd.merge(
+                            combined_boxplot_df,
+                            rth_combined,
+                            on=[SHELL_COLUMN, TEST_TYPE_COLUMN, CURRENT_COLUMN],
+                            how="outer",
+                        )
+
+                has_lambda = (
+                    LAMBDA_COLUMN in combined_boxplot_df.columns
+                    and combined_boxplot_df[LAMBDA_COLUMN].notna().any()
+                )
+                has_shift = (
+                    SHIFT_COLUMN in combined_boxplot_df.columns
+                    and combined_boxplot_df[SHIFT_COLUMN].notna().any()
+                )
+
+                tab_names = ["功率", "效率", "电压"]
+                if has_lambda:
+                    tab_names.append("波长")
+                if has_shift:
+                    tab_names.append("波长Shift")
+
+                boxplot_tabs = st.tabs(tab_names)
+
+                def _render_boxplot(data: pd.DataFrame, value_col: str, value_label: str, transform=None):
+                    if transform:
+                        data = data.copy()
+                        data[value_col] = transform(data[value_col])
+                    data = data.dropna()
+                    if data.empty:
+                        st.info(f"无{value_label}数据")
+                        return
+
+                    station_counts = data.groupby(TEST_TYPE_COLUMN).size()
+                    stations_with_enough = station_counts[station_counts >= 2].index.tolist()
+                    variance_threshold = 1e-10
+                    stations_with_data: List[str] = []
+                    stations_no_variance: List[str] = []
+                    for station in stations_with_enough:
+                        std_val = data[data[TEST_TYPE_COLUMN] == station][value_col].std()
+                        if std_val > variance_threshold:
+                            stations_with_data.append(station)
+                        else:
+                            stations_no_variance.append(station)
+
+                    if stations_with_data:
+                        filtered = data[data[TEST_TYPE_COLUMN].isin(stations_with_data)].copy()
+                        filtered["__order"] = filtered[TEST_TYPE_COLUMN].map(SANITIZED_ORDER_LOOKUP)
+                        filtered = filtered.sort_values("__order").drop(columns=["__order"])
+                        present_stations = [s for s in SANITIZED_PLOT_ORDER if s in stations_with_data]
+                        extras = [s for s in stations_with_data if s not in present_stations]
+                        present_stations.extend(extras)
+                        present_colors = [STATION_COLORS.get(s, "#000084") for s in present_stations]
+
+                        chart = (
+                            alt.Chart(filtered)
+                            .mark_boxplot(extent="min-max", size=50)
+                            .encode(
+                                x=alt.X(
+                                    f"{TEST_TYPE_COLUMN}:N",
+                                    title="Station",
+                                    sort=present_stations,
+                                    axis=alt.Axis(labelAngle=-45),
+                                ),
+                                y=alt.Y(f"{value_col}:Q", title=value_label, scale=alt.Scale(zero=False)),
+                                color=alt.Color(
+                                    f"{TEST_TYPE_COLUMN}:N",
+                                    legend=None,
+                                    scale=alt.Scale(domain=present_stations, range=present_colors),
+                                ),
+                                tooltip=[
+                                    alt.Tooltip(f"{TEST_TYPE_COLUMN}:N", title="Station"),
+                                    alt.Tooltip("lower_whisker:Q", title="最小值", format=".3f"),
+                                    alt.Tooltip("lower_box:Q", title="下四分位数", format=".3f"),
+                                    alt.Tooltip("middle:Q", title="中位数", format=".3f"),
+                                    alt.Tooltip("upper_box:Q", title="上四分位数", format=".3f"),
+                                    alt.Tooltip("upper_whisker:Q", title="最大值", format=".3f"),
+                                ],
+                            )
+                            .properties(height=500, title=f"各站别{value_label}分布箱线图")
+                            .configure_title(fontSize=16, anchor="middle")
+                        )
+                        st.altair_chart(chart, use_container_width=True)
+
+                        stations_insufficient = station_counts[station_counts < 2].index.tolist()
+                        warnings: List[str] = []
+                        if stations_insufficient:
+                            warnings.append(f"数据点不足（至少需要 2 个壳体）：{', '.join(stations_insufficient)}")
+                        if stations_no_variance:
+                            warnings.append(f"数据无变化：{', '.join(stations_no_variance)}")
+                        if warnings:
+                            st.caption("⚠️ " + "；".join(warnings))
+                    else:
+                        if stations_no_variance:
+                            st.info(f"以下站别数据无变化：{', '.join(stations_no_variance)}")
+                        else:
+                            st.info("各站别数据点不足（至少需要 2 个壳体的数据）")
+
+                tab_idx = 0
+                with boxplot_tabs[tab_idx]:
+                    tab_idx += 1
+                    _render_boxplot(
+                        combined_boxplot_df[[TEST_TYPE_COLUMN, POWER_COLUMN]].copy(),
+                        POWER_COLUMN,
+                        "功率(W)",
+                    )
+
+                with boxplot_tabs[tab_idx]:
+                    tab_idx += 1
+                    efficiency_data = combined_boxplot_df[[TEST_TYPE_COLUMN, EFFICIENCY_COLUMN]].copy()
+                    _render_boxplot(
+                        efficiency_data,
+                        EFFICIENCY_COLUMN,
+                        "效率(%)",
+                        transform=lambda series: pd.to_numeric(series, errors="coerce") * 100,
+                    )
+
+                with boxplot_tabs[tab_idx]:
+                    tab_idx += 1
+                    _render_boxplot(
+                        combined_boxplot_df[[TEST_TYPE_COLUMN, VOLTAGE_COLUMN]].copy(),
+                        VOLTAGE_COLUMN,
+                        "电压(V)",
+                    )
+
+                if has_lambda:
+                    with boxplot_tabs[tab_idx]:
+                        tab_idx += 1
+                        _render_boxplot(
+                            combined_boxplot_df[[TEST_TYPE_COLUMN, LAMBDA_COLUMN]].copy(),
+                            LAMBDA_COLUMN,
+                            "波长(nm)",
+                        )
+
+                if has_shift:
+                    with boxplot_tabs[tab_idx]:
+                        _render_boxplot(
+                            combined_boxplot_df[[TEST_TYPE_COLUMN, SHIFT_COLUMN]].copy(),
+                            SHIFT_COLUMN,
+                            "波长Shift(nm)",
+                        )
+            else:
+                st.info("无可用数据")
+            st.markdown('---')
+        else:
+            st.info("请先抽取数据")
 
     if st.session_state.get('show_single_analysis', False):
         st.markdown('<div id="single"></div>', unsafe_allow_html=True)

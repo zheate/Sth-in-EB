@@ -264,7 +264,7 @@ def normalize_station_name(station_name: str) -> str:
 
 
 
-def extract_progress_data(df: pd.DataFrame) -> pd.DataFrame:
+def extract_progress_data(df: pd.DataFrame, light: bool = False) -> pd.DataFrame:
 
     """从原始数据中提取进度信息"""
 
@@ -405,7 +405,7 @@ def extract_progress_data(df: pd.DataFrame) -> pd.DataFrame:
 
     result_df.attrs["production_order_column"] = production_order_column
 
-    
+    result_df.attrs["time_cols"] = [f"{excel_col}时间" for excel_col in STATION_MAPPING.keys() if f"{excel_col}时间" in df.columns]
 
     return result_df
 
@@ -812,7 +812,7 @@ if data_source == "📤 上传文件":
 
             st.session_state.progress_raw_df = df
 
-            st.session_state.progress_df = extract_progress_data(df)
+            st.session_state.progress_df = extract_progress_data(df, light=st.session_state.get('progress_only_stats', False))
 
             st.session_state.uploaded_filename = uploaded_file.name
 
@@ -844,7 +844,7 @@ else:  # 从文件夹选择
 
         st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
 
-        refresh_btn = st.button("🔄 刷新")
+        refresh_btn = st.button("🔄 刷新", use_container_width=True)
 
     
 
@@ -964,11 +964,16 @@ else:  # 从文件夹选择
                                     if selected_file_path.endswith('.csv'):
                                         header_df = pd.read_csv(selected_file_path, nrows=0)
                                         usecols = _compute_usecols(list(header_df.columns))
-                                        df = pd.read_csv(selected_file_path, usecols=usecols)
+                                        time_cols = [f"{excel_col}时间" for excel_col in STATION_MAPPING.keys() if f"{excel_col}时间" in header_df.columns]
+                                        dtype_map = {c: "string" for c in ["壳体号", "料号", "生产订单"] if c in usecols}
+                                        df = pd.read_csv(selected_file_path, usecols=usecols, dtype=dtype_map, parse_dates=time_cols, infer_datetime_format=True, low_memory=False)
                                     else:
                                         header_df = pd.read_excel(selected_file_path, nrows=0)
                                         usecols = _compute_usecols(list(header_df.columns))
-                                        df = pd.read_excel(selected_file_path, usecols=usecols)
+                                        df = pd.read_excel(selected_file_path, usecols=usecols, engine="openpyxl" if selected_file_path.endswith('.xlsx') else None)
+                                        time_cols = [f"{excel_col}时间" for excel_col in STATION_MAPPING.keys() if f"{excel_col}时间" in header_df.columns]
+                                        if time_cols:
+                                            df[time_cols] = df[time_cols].apply(pd.to_datetime, errors='coerce')
                                     read_t1 = time.perf_counter()
 
                                     
@@ -976,7 +981,7 @@ else:  # 从文件夹选择
                                     st.session_state.progress_raw_df = df
 
                                     parse_t0 = time.perf_counter()
-                                    st.session_state.progress_df = extract_progress_data(df)
+                                    st.session_state.progress_df = extract_progress_data(df, light=st.session_state.get('progress_only_stats', False))
                                     parse_t1 = time.perf_counter()
                                     st.info(f"读取耗时: {(read_t1 - read_t0)*1000:.0f} ms，解析耗时: {(parse_t1 - parse_t0)*1000:.0f} ms")
 
@@ -1042,7 +1047,7 @@ if st.session_state.progress_df is not None:
 
     ):
 
-        progress_df = extract_progress_data(df)
+        progress_df = extract_progress_data(df, light=st.session_state.get('progress_only_stats', False))
 
         st.session_state.progress_df = progress_df
 
@@ -1199,10 +1204,9 @@ if st.session_state.progress_df is not None:
                 st.metric("壳体总数", len(filtered_progress_df))
 
             with col2:
-
-                avg_progress = filtered_progress_df['完成站别'].apply(len).mean()
-
-                st.metric("平均完成站别数", f"{avg_progress:.1f}")
+                if '完成站别' in filtered_progress_df.columns:
+                    avg_progress = filtered_progress_df['完成站别'].apply(len).mean()
+                    st.metric("平均完成站别数", f"{avg_progress:.1f}")
 
             with col3:
 
@@ -1211,55 +1215,18 @@ if st.session_state.progress_df is not None:
                 st.metric("基础站别数", total_stations)
 
             with col4:
-
-                # 获取最新测试时间
-
                 latest_time = None
-
-                for _, row in filtered_progress_df.iterrows():
-
-                    station_times = row.get('站别时间', {})
-
-                    if isinstance(station_times, dict):
-
-                        for time_value in station_times.values():
-
-                            if time_value is not None and time_value != '':
-
-                                try:
-
-                                    if isinstance(time_value, pd.Timestamp):
-
-                                        parsed_time = time_value
-
-                                    elif isinstance(time_value, datetime):
-
-                                        parsed_time = pd.Timestamp(time_value)
-
-                                    else:
-
-                                        parsed_time = pd.to_datetime(time_value, errors='coerce')
-
-                                    
-
-                                    if pd.notna(parsed_time):
-
-                                        if latest_time is None or parsed_time > latest_time:
-
-                                            latest_time = parsed_time
-
-                                except:
-
-                                    pass
-
-                
-
+                time_cols = progress_df.attrs.get("time_cols", [])
+                if df is not None and time_cols:
+                    tc = [c for c in time_cols if c in df.columns]
+                    if tc:
+                        parsed = df[tc].apply(pd.to_datetime, errors='coerce')
+                        max_val = parsed.max().max()
+                        if pd.notna(max_val):
+                            latest_time = max_val
                 if latest_time:
-
                     st.metric("最新测试时间", latest_time.strftime("%Y-%m-%d %H:%M"))
-
                 else:
-
                     st.metric("最新测试时间", "无数据")
 
             
@@ -1276,11 +1243,15 @@ if st.session_state.progress_df is not None:
 
                     counts_style = counts_df.style.format({"占比": "{:.1%}"})
 
-                    st.dataframe(counts_style, use_container_width=True, height=360)
+                    table_height = max(180, min(320, 36 * len(counts_df) + 60))
+
+                    st.dataframe(counts_style, use_container_width=True, height=table_height)
 
                 with chart_col:
 
                     station_order = counts_df["站别"].tolist()
+
+                    chart_height = max(160, min(360, 28 * len(counts_df)))
 
                     chart = (
 
@@ -1298,7 +1269,7 @@ if st.session_state.progress_df is not None:
 
                         )
 
-                    )
+                    ).properties(height=chart_height)
 
                     st.altair_chart(chart, use_container_width=True)
 
@@ -1392,30 +1363,16 @@ if st.session_state.progress_df is not None:
 
             
 
-            st.markdown("---")
-
-            st.markdown("### 📋 进度表格")
-            st.caption("🔍 仅显示工程分析的壳体")
-
-            
-
-            # 进度表格内容 - 只显示工程分析的壳体
-            engineering_only_df = filtered_progress_df[filtered_progress_df['是否工程分析'] == True]
-            table_df = create_progress_table(engineering_only_df)
-
-            
-
-            # 使用样式高亮工程分析行
-
-            def highlight_engineering(row):
-
-                return [''] * len(row)
-
-            
-
-            styled_df = table_df.style.apply(highlight_engineering, axis=1)
-
-            st.dataframe(styled_df, use_container_width=True, height=400)
+            if not st.session_state.get('progress_only_stats', False):
+                st.markdown("---")
+                st.markdown("### 📋 进度表格")
+                show_eng_only = st.checkbox("🔍 仅显示工程分析的壳体", value=False, key="progress_show_eng_only")
+                source_df = filtered_progress_df[filtered_progress_df['是否工程分析'] == True] if show_eng_only else filtered_progress_df
+                table_df = create_progress_table(source_df)
+                def highlight_engineering(row):
+                    return [''] * len(row)
+                styled_df = table_df.style.apply(highlight_engineering, axis=1)
+                st.dataframe(styled_df, use_container_width=True, height=400)
 
 
 
@@ -1454,4 +1411,8 @@ else:
        - 进度表格：详细列出每个壳体的完成情况
 
     """)
+
+if 'progress_only_stats' not in st.session_state:
+    st.session_state.progress_only_stats = False
+st.checkbox("仅统计模式", value=st.session_state.progress_only_stats, key="progress_only_stats")
 

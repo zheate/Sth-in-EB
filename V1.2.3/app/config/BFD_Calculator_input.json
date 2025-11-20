@@ -6,11 +6,11 @@
     "foc_thickness": "3.2",
     "material_slow": "H-ZF52-976",
     "re_index_slow": 1.8145,
-    "soc_curvature": "4.89",
-    "soc_efl": "6",
-    "soc_thickness": "3.2",
+    "soc_curvature": "4.072",
+    "soc_efl": "5",
+    "soc_thickness": "3.193",
     "precision": 3,
-    "has_endcap": true,
-    "endcap_material": "SK1310_976",
-    "endcap_length": "5.0"
+    "has_endcap": false,
+    "endcap_material": "",
+    "endcap_length": ""
 }
