@@ -152,6 +152,8 @@ def render_home_page() -> None:
              "用途": "查看壳体在各工序的实时进度"},
             {"页面": "COS筛选", 
              "用途": "按波长和仓库筛选批次实例数据"},
+            {"页面": "工程分析", 
+             "用途": "工程分析明细报表分析"},
             {"页面": "光学计算器", 
              "用途": "NA 和后焦距计算器"},
         ]
@@ -168,10 +170,12 @@ def main() -> None:
             st.Page(PAGES_ROOT / "Progress.py", title="进度追踪", icon="📈"),
             st.Page(PAGES_ROOT / "TestAnalysis.py", title="测试数据分析", icon="📊"),
             st.Page(PAGES_ROOT / "COS_Filter.py", title="COS筛选", icon="🔍"),
+            st.Page(PAGES_ROOT / "Engineering_Analysis.py", title="工程分析", icon="📉"),
         ],
         "工具": [
             st.Page(PAGES_ROOT / "NA_Calculator.py", title="NA计算器", icon="🎯"),
             st.Page(PAGES_ROOT / "BFD_Calculator.py", title="BFD计算器", icon="🔧"),
+            st.Page(PAGES_ROOT / "Refractive_Index.py", title="折射率库", icon="🔍"),
         ],
     }
 

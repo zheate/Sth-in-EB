@@ -5,6 +5,12 @@ from pathlib import Path
 from typing import Any, Dict
 
 from config import get_config_path
+from utils.refractive_index_helper import (
+    get_refractive_index as lookup_refractive_index,
+    get_wavelength_span,
+    load_material_data,
+    search_materials,
+)
 
 # 配置页面（仅在独立运行时使用）
 try:
@@ -641,7 +647,91 @@ def material_manager():
             if st.button("❌ 关闭", use_container_width=True, key="na_close_material"):
                 st.session_state.show_material_manager = False
                 st.rerun()
-    
+
+    # 折射率库搜索并导入
+    st.markdown("---")
+    st.markdown("### 🔎 折射率库搜索（refractiveindex.info）")
+
+    ri_state = st.session_state.setdefault("na_ri_state", {"wavelength_nm": 976.0})
+    ri_query = st.text_input(
+        "输入关键词（材料/厂家/代号）",
+        value=ri_state.get("query", ""),
+        placeholder="例如: Si, BK7, Gold...",
+        key="na_ri_query",
+    )
+    ri_state["query"] = ri_query
+
+    ri_root, ri_results = search_materials(ri_query)
+
+    if ri_root is None:
+        st.info("未找到 refractiveindex.info 数据库，请将 'refractiveindex.info-database' 目录放在 app/data 或项目同级的 refractive_index 目录下。")
+    elif not ri_results:
+        st.warning("未找到匹配的材料，请更换关键词。")
+    else:
+        options = [m["label"] for m in ri_results[:80]]
+        selected_label = st.selectbox(
+            "匹配结果（最多显示前 80 条）",
+            options=options,
+            key="na_ri_selected",
+        )
+        selected_material = next((m for m in ri_results if m["label"] == selected_label), None)
+
+        def _build_default_name(material, wavelength_nm: float) -> str:
+            # 使用标签末段（页面名），保证与选择展示一致；转大写并用短横线
+            label = material.get("label", "")
+            parts = [p.strip() for p in label.split(">") if p.strip()]
+            base = (parts[-1] if parts else material.get("page") or material.get("book") or material.get("shelf") or "material")
+            base = base.replace(" ", "-").upper()
+            return f"{base}-{int(round(wavelength_nm))}"
+
+        if selected_material and ri_state.get("selected_label") != selected_label:
+            ri_state["selected_label"] = selected_label
+            wave_default = float(ri_state.get("wavelength_nm", ri_state.get("wavelength", 976.0)) or 0)
+            auto_name = _build_default_name(selected_material, wave_default)
+            ri_state["auto_name"] = auto_name
+
+        # 输入为 nm，内部换算为 μm
+        w_default_nm = ri_state.get("wavelength_nm", ri_state.get("wavelength", 976.0))
+        wavelength_nm = st.number_input(
+            "波长 (nm)",
+            min_value=200.0,
+            max_value=20000.0,
+            step=1.0,
+            value=float(w_default_nm),
+            key="na_ri_wavelength",
+        )
+        ri_state["wavelength_nm"] = wavelength_nm
+        if selected_material:
+            auto_name = _build_default_name(selected_material, wavelength_nm)
+            ri_state["auto_name"] = auto_name
+        calc_wavelength_um = float(wavelength_nm) / 1000.0
+
+        span = None
+        material_data = None
+        if selected_material:
+            material_data = load_material_data(selected_material["data_path"])
+            if material_data and "DATA" in material_data:
+                span = get_wavelength_span(material_data["DATA"])
+        if span:
+            span_nm = (span[0] * 1000, span[1] * 1000)
+            st.caption(f"可用波长范围: {span_nm[0]:.0f} - {span_nm[1]:.0f} nm")
+
+        if st.button("📥 导入折射率到材料库", use_container_width=True, key="na_ri_import"):
+            if not selected_material:
+                st.error("请选择要导入的材料")
+            elif not material_data or "DATA" not in material_data:
+                st.error("未能读取材料数据")
+            else:
+                n_val, k_val = lookup_refractive_index(material_data["DATA"], float(calc_wavelength_um))
+                if n_val is None:
+                    st.error("当前波长未找到有效折射率，请调整波长或选择其他数据集。")
+                else:
+                    auto_name = ri_state.get("auto_name") or _build_default_name(selected_material, wavelength_nm)
+                    final_name = auto_name.upper()
+                    st.session_state.materials[final_name] = float(f"{n_val:.6f}")
+                    save_json(st.session_state.materials, MATERIAL_FILE)
+                    st.success(f"已添加/更新 '{final_name}'，n={n_val:.6f}，k={0.0 if k_val is None else k_val:.3e}")
+
     # 显示所有材料
     st.markdown("---")
     st.markdown("### 📋 材料列表")
@@ -786,7 +876,7 @@ def main():
         st.session_state.calculation_mode = "standard"
     
     # 顶部按钮
-    col1, col2, col3 = st.columns([1, 1, 4])
+    col1, col2, col3 = st.columns([1.5, 1.5, 4])
     with col1:
         if st.button("📦 管理材料", use_container_width=True, key="na_manage_material"):
             st.session_state.show_material_manager = not st.session_state.show_material_manager

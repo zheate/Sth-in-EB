@@ -3653,6 +3653,92 @@ def main() -> None:
                         )
                         st.altair_chart(chart, use_container_width=True)
 
+                        # ---------------------------------------------------------
+                        # 新增：统计分析 (衰减百分比 & T-test)
+                        # ---------------------------------------------------------
+                        if len(present_stations) > 1:
+                            # 确保统计库已加载
+                            _ensure_prediction_libs_loaded()
+                            
+                            stats_results = []
+                            
+                            # 按顺序两两比较
+                            for i in range(1, len(present_stations)):
+                                curr_name = present_stations[i]
+                                prev_name = present_stations[i-1]
+                                
+                                curr_series = filtered[filtered[TEST_TYPE_COLUMN] == curr_name][value_col]
+                                prev_series = filtered[filtered[TEST_TYPE_COLUMN] == prev_name][value_col]
+                                
+                                if curr_series.empty or prev_series.empty:
+                                    continue
+                                
+                                curr_mean = curr_series.mean()
+                                prev_mean = prev_series.mean()
+                                
+                                # 1. 计算变化百分比
+                                if prev_mean != 0:
+                                    pct_change = (curr_mean - prev_mean) / abs(prev_mean) * 100
+                                else:
+                                    pct_change = np.nan
+                                
+                                # 2. T-test (Welch's t-test, 不假设方差相等)
+                                p_value = np.nan
+                                sig_label = "N/A"
+                                if HAS_PREDICTION_LIBS and stats is not None:
+                                    try:
+                                        # nan_policy='omit' to be safe, though we dropped na earlier
+                                        t_stat, p_val = stats.ttest_ind(
+                                            curr_series, 
+                                            prev_series, 
+                                            equal_var=False, 
+                                            nan_policy='omit'
+                                        )
+                                        p_value = p_val
+                                        
+                                        if p_val < 0.001:
+                                            sig_label = "***"
+                                        elif p_val < 0.01:
+                                            sig_label = "**"
+                                        elif p_val < 0.05:
+                                            sig_label = "*"
+                                        else:
+                                            sig_label = "ns" # not significant
+                                    except Exception:
+                                        pass
+                                
+                                stats_results.append({
+                                    "比较项": f"{curr_name} vs {prev_name}",
+                                    "前序均值": prev_mean,
+                                    "当前均值": curr_mean,
+                                    "变化幅度(%)": pct_change,
+                                    "P值": p_value,
+                                    "显著性": sig_label
+                                })
+                            
+                            if stats_results:
+                                st.write("#### 📉 统计分析 (T-test)")
+                                st.caption("注：显著性标记 ***(p<0.001), **(p<0.01), *(p<0.05), ns(无显著差异)")
+                                
+                                df_stats = pd.DataFrame(stats_results)
+                                
+                                # 格式化显示
+                                # 使用 Styler 进行格式化，或者直接处理数据
+                                # 这里为了简单直接处理数据为字符串用于展示，保留原始值用于计算（如果需要）
+                                display_df = df_stats.copy()
+                                
+                                display_df["前序均值"] = display_df["前序均值"].apply(lambda x: f"{x:.4f}")
+                                display_df["当前均值"] = display_df["当前均值"].apply(lambda x: f"{x:.4f}")
+                                display_df["变化幅度(%)"] = display_df["变化幅度(%)"].apply(
+                                    lambda x: f"{x:+.2f}%" if pd.notnull(x) else "N/A"
+                                )
+                                display_df["P值"] = display_df["P值"].apply(
+                                    lambda x: f"{x:.4e}" if pd.notnull(x) else "N/A"
+                                )
+                                
+                                st.table(display_df)
+                        # ---------------------------------------------------------
+
                         stations_insufficient = station_counts[station_counts < 2].index.tolist()
                         warnings: List[str] = []
                         if stations_insufficient:
