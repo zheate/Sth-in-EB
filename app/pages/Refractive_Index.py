@@ -65,7 +65,7 @@ def _plot_refractive_index(data_list):
 
 
 def main():
-    st.title("🔍 折射率库查询")
+    st.title("🔍 Refractive Index")
     st.caption("数据源：refractiveindex.info")
 
     root, materials = load_catalog()

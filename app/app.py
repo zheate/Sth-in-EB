@@ -175,7 +175,7 @@ def main() -> None:
         "工具": [
             st.Page(PAGES_ROOT / "NA_Calculator.py", title="NA计算器", icon="🎯"),
             st.Page(PAGES_ROOT / "BFD_Calculator.py", title="BFD计算器", icon="🔧"),
-            st.Page(PAGES_ROOT / "Refractive_Index.py", title="折射率库", icon="🔍"),
+            st.Page(PAGES_ROOT / "Refractive_Index.py", title="Refractive_Index", icon="🔍"),
         ],
     }
 
