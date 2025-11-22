@@ -17,6 +17,41 @@ try:
 except Exception:
     pass
 
+# 自定义样式
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        padding: 1rem 0;
+        margin-bottom: 1rem;
+    }
+    .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+    .stMetric {
+        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #667eea30;
+    }
+    .material-info {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+        margin: 1rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 
 def _plot_refractive_index(data_list):
     span = get_wavelength_span(data_list)
