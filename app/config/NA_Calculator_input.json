@@ -1,8 +1,8 @@
 {
-    "radius": "1.0203",
-    "length": "5",
+    "radius": "0.9235",
+    "length": "4.5255",
     "material": "air",
     "refractive_index": "1.0003",
     "na": "0.2000",
-    "theta": "23.067"
+    "theta": "23.068"
 }
