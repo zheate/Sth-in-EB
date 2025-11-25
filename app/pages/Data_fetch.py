@@ -151,6 +151,8 @@ OUTPUT_COLUMNS = [
     "电光效率(%)",
     "波长lambda",
     "波长shift",
+    "2A波长",
+    "冷波长",
 ]
 
 
@@ -168,6 +170,8 @@ def _exclude_zero_current(df: pd.DataFrame) -> pd.DataFrame:
     EFFICIENCY_COLUMN,
     LAMBDA_COLUMN,
     SHIFT_COLUMN,
+    WAVELENGTH_2A_COLUMN,
+    WAVELENGTH_COLD_COLUMN,
 ) = OUTPUT_COLUMNS
 
 
@@ -192,12 +196,13 @@ def _resolve_test_folder_cached(base_path_str: str, test_category: str) -> Path:
         return nested
     return candidate
 
-def align_output_columns(df: pd.DataFrame) -> pd.DataFrame:
+def align_output_columns(df: pd.DataFrame, columns: Optional[List[str]] = None) -> pd.DataFrame:
+    target_cols = columns if columns is not None else OUTPUT_COLUMNS
     aligned = df.copy()
-    for column in OUTPUT_COLUMNS:
+    for column in target_cols:
         if column not in aligned.columns:
             aligned[column] = pd.NA
-    return aligned[OUTPUT_COLUMNS]
+    return aligned[target_cols]
 
 def first_valid_value(series: pd.Series):
     for value in series:
@@ -205,18 +210,19 @@ def first_valid_value(series: pd.Series):
             return value
     return pd.NA
 
-def merge_measurement_rows(df: pd.DataFrame) -> pd.DataFrame:
+def merge_measurement_rows(df: pd.DataFrame, columns: Optional[List[str]] = None) -> pd.DataFrame:
+    target_cols = columns if columns is not None else OUTPUT_COLUMNS
     if df.empty:
         return df
     key_columns = [SHELL_COLUMN, TEST_TYPE_COLUMN, CURRENT_COLUMN]
     normalized = df.copy()
-    for column in OUTPUT_COLUMNS:
+    for column in target_cols:
         if column not in normalized.columns:
             normalized[column] = pd.NA
     normalized[CURRENT_COLUMN] = pd.to_numeric(normalized[CURRENT_COLUMN], errors="coerce")
-    agg_dict = {column: first_valid_value for column in OUTPUT_COLUMNS if column not in key_columns}
+    agg_dict = {column: first_valid_value for column in target_cols if column not in key_columns}
     merged = normalized.groupby(key_columns, sort=False, as_index=False).agg(agg_dict)
-    return align_output_columns(merged)
+    return align_output_columns(merged, columns=target_cols)
 
 # Removed unused Bokeh plot_dual_y_axes function - using Altair instead
 
@@ -1950,6 +1956,19 @@ def _extract_rth_data_impl(file_path: Path, current_points: List[float]) -> Tupl
 
     result[SHIFT_COLUMN] = result[LAMBDA_COLUMN] - lambda_reference
 
+    # 提取2A波长
+    rows_2a = numeric_df[(numeric_df[CURRENT_COLUMN] - 2.0).abs() <= CURRENT_TOLERANCE]
+    val_2a = float(rows_2a.iloc[0][LAMBDA_COLUMN]) if not rows_2a.empty else pd.NA
+    result[WAVELENGTH_2A_COLUMN] = val_2a
+
+    # 提取冷波长（最小电流处的波长）
+    if not numeric_df.empty:
+        idx_min = numeric_df[CURRENT_COLUMN].idxmin()
+        val_cold = float(numeric_df.loc[idx_min][LAMBDA_COLUMN])
+        result[WAVELENGTH_COLD_COLUMN] = val_cold
+    else:
+        result[WAVELENGTH_COLD_COLUMN] = pd.NA
+
     result_reset = result.reset_index(drop=True)
 
     result_reset.attrs["lambda_baseline_current"] = baseline_current
@@ -2438,6 +2457,11 @@ def main() -> None:
         if total_entries >= 20:
             st.info(f"{entry_label}数量较多，可考虑分批处理以缩短等待时间。")
         
+        effective_output_columns = list(OUTPUT_COLUMNS)
+        if extraction_mode == MODULE_MODE:
+            if WAVELENGTH_COLD_COLUMN in effective_output_columns:
+                effective_output_columns.remove(WAVELENGTH_COLD_COLUMN)
+
         # 创建进度显示区域
         progress_container = st.container()
         with progress_container:
@@ -2462,7 +2486,7 @@ def main() -> None:
                     tagged = extracted.copy()
                     tagged.insert(0, TEST_TYPE_COLUMN, test_category)
                     tagged.insert(0, SHELL_COLUMN, entry_id)
-                    tagged = align_output_columns(tagged)
+                    tagged = align_output_columns(tagged, columns=effective_output_columns)
                     return {
                         "tagged": tagged,
                         "lvi": (entry_id, test_category, lvi_full, selected_subset),
@@ -2487,7 +2511,7 @@ def main() -> None:
                     tagged = extracted.copy()
                     tagged.insert(0, TEST_TYPE_COLUMN, test_category)
                     tagged.insert(0, SHELL_COLUMN, entry_id)
-                    tagged = align_output_columns(tagged)
+                    tagged = align_output_columns(tagged, columns=effective_output_columns)
                     return {
                         "tagged": tagged,
                         "lvi": None,
@@ -2502,7 +2526,7 @@ def main() -> None:
                     tagged = extracted.copy()
                     tagged.insert(0, TEST_TYPE_COLUMN, test_category)
                     tagged.insert(0, SHELL_COLUMN, entry_id)
-                    tagged = align_output_columns(tagged)
+                    tagged = align_output_columns(tagged, columns=effective_output_columns)
                     return {
                         "tagged": tagged,
                         "lvi": None,
@@ -2605,7 +2629,7 @@ def main() -> None:
 
             tagged.insert(0, SHELL_COLUMN, entry_id)
 
-            tagged = align_output_columns(tagged)
+            tagged = align_output_columns(tagged, columns=effective_output_columns)
 
             combined_frames.append(tagged)
 
@@ -2808,7 +2832,7 @@ def main() -> None:
         
             result_df[EFFICIENCY_COLUMN] = result_df[EFFICIENCY_COLUMN].multiply(100).round(3)
         
-        result_df = merge_measurement_rows(result_df)
+        result_df = merge_measurement_rows(result_df, columns=effective_output_columns)
         
         # 对所有数值列保留三位小数
         numeric_columns = [CURRENT_COLUMN, POWER_COLUMN, VOLTAGE_COLUMN, EFFICIENCY_COLUMN, LAMBDA_COLUMN, SHIFT_COLUMN]
