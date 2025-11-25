@@ -1477,92 +1477,63 @@ def parse_folder_entries(raw_folders: str) -> List[str]:
 
     return entries
 
-def parse_current_points(raw_points: str) -> List[float]:
+def parse_current_points(raw_points: str) -> Optional[List[float]]:
+    """解析电流点输入。输入 'a' 或 'A' 时返回 None 以提取全部电流点；否则返回电流点列表。"""
+    text = raw_points.strip()
+    if text.lower() == "a":
+        return None
 
     currents: List[float] = []
+    cleaned = text.replace("，", ",").replace("～", "~")
 
-    for line in raw_points.replace("，", ",").splitlines():
-
+    for line in cleaned.splitlines():
         for piece in line.split(","):
-
             piece = piece.strip()
-
             if not piece:
-
                 continue
 
             normalized = piece.replace("～", "~")
 
             # whitespace-separated individual values, e.g. "2 5 7"
-
             if "~" not in normalized and "-" not in normalized[1:]:
-
                 space_tokens = [token for token in normalized.split() if token]
-
                 if len(space_tokens) > 1:
-
                     try:
-
                         currents.extend(float(token) for token in space_tokens)
-
                     except ValueError as exc:
-
                         raise ValueError(f"无法解析电流值: {piece}") from exc
-
                     continue
 
             range_tokens: Optional[List[str]] = None
 
             if "~" in normalized:
-
                 range_tokens = normalized.split("~", 1)
-
             else:
-
                 hyphen_index = normalized.find("-", 1)
-
                 if hyphen_index != -1:
-
                     range_tokens = [normalized[:hyphen_index], normalized[hyphen_index + 1 :]]
 
             if range_tokens:
-
                 start_str, end_str = [token.strip() for token in range_tokens]
-
                 try:
-
                     start = float(start_str)
-
                     end = float(end_str)
-
                 except ValueError as exc:
-
                     raise ValueError(f"无法解析电流范围: {piece}") from exc
 
                 if start.is_integer() and end.is_integer():
-
                     start_int = int(start)
-
                     end_int = int(end)
-
                     step = 1 if end_int >= start_int else -1
-
                     for value in range(start_int, end_int + step, step):
-
                         currents.append(float(value))
-
                 else:
-
                     currents.extend([start, end])
-
                 continue
 
             try:
-
                 currents.append(float(normalized))
-
             except ValueError as exc:
-
                 raise ValueError(f"无法解析电流值: {piece}") from exc
 
     return currents
@@ -1796,7 +1767,7 @@ def extract_generic_excel(file_path: Path, *, mtime: Optional[float] = None) -> 
 
     return _extract_generic_excel_cached(str(file_path), effective_mtime)
 
-def _extract_lvi_data_impl(file_path: Path, current_points: List[float]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
+def _extract_lvi_data_impl(file_path: Path, current_points: Optional[List[float]]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
 
     if not file_path.exists():
 
@@ -1819,17 +1790,15 @@ def _extract_lvi_data_impl(file_path: Path, current_points: List[float]) -> Tupl
     df = df.dropna(how="all")
 
     numeric_df = df.apply(pd.to_numeric, errors="coerce").dropna(subset=[CURRENT_COLUMN])
+    numeric_df = drop_zero_current(numeric_df, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
 
     if numeric_df.empty:
 
         raise ValueError("LVI 数据为空或无法提取有效的电流点。")
 
     if current_points:
-
         mask = pd.Series(False, index=numeric_df.index)
-
         missing_points: List[float] = []
-
         for current in current_points:
 
             current_mask = (numeric_df[CURRENT_COLUMN] - current).abs() <= CURRENT_TOLERANCE
@@ -1850,27 +1819,30 @@ def _extract_lvi_data_impl(file_path: Path, current_points: List[float]) -> Tupl
 
         return filtered.reset_index(drop=True), missing_points, numeric_df
 
+    # 如果 current_points 为 None (全电流模式)，直接返回所有数据
+    if current_points is None:
+        return numeric_df.reset_index(drop=True), [], numeric_df
+
     idx = numeric_df[CURRENT_COLUMN].idxmax()
 
     return numeric_df.loc[[idx]].reset_index(drop=True), [], numeric_df
 
 @st.cache_data(show_spinner=False)
 
-def _extract_lvi_data_cached(file_path_str: str, mtime: float, current_points: Tuple[float, ...]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
+def _extract_lvi_data_cached(file_path_str: str, mtime: float, current_points: Optional[Tuple[float, ...]]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
 
     path = Path(file_path_str)
+    points_list: Optional[List[float]] = list(current_points) if current_points is not None else None
+    return _extract_lvi_data_impl(path, points_list)
 
-    return _extract_lvi_data_impl(path, list(current_points))
-
-def extract_lvi_data(file_path: Path, current_points: List[float], *, mtime: Optional[float] = None) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
-
-    cached_points = tuple(current_points)
+def extract_lvi_data(file_path: Path, current_points: Optional[List[float]], *, mtime: Optional[float] = None) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
+    cached_points = tuple(current_points) if current_points is not None else None
 
     effective_mtime = file_path.stat().st_mtime if mtime is None else mtime
 
     return _extract_lvi_data_cached(str(file_path), effective_mtime, cached_points)
 
-def _extract_rth_data_impl(file_path: Path, current_points: List[float]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
+def _extract_rth_data_impl(file_path: Path, current_points: Optional[List[float]]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
 
     if not file_path.exists():
 
@@ -1893,6 +1865,7 @@ def _extract_rth_data_impl(file_path: Path, current_points: List[float]) -> Tupl
     df = df.dropna(how="all")
 
     numeric_df = df.apply(pd.to_numeric, errors="coerce").dropna(subset=[LAMBDA_COLUMN, "热量Q", CURRENT_COLUMN])
+    numeric_df = drop_zero_current(numeric_df, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
 
     if numeric_df.empty:
 
@@ -1921,11 +1894,8 @@ def _extract_rth_data_impl(file_path: Path, current_points: List[float]) -> Tupl
     full_numeric.attrs["lambda_baseline_current"] = baseline_current
 
     if current_points:
-
         mask = pd.Series(False, index=numeric_df.index)
-
         missing_points: List[float] = []
-
         for current in current_points:
 
             current_mask = (numeric_df[CURRENT_COLUMN] - current).abs() <= CURRENT_TOLERANCE
@@ -1943,13 +1913,14 @@ def _extract_rth_data_impl(file_path: Path, current_points: List[float]) -> Tupl
         if filtered.empty:
 
             raise ValueError("Rth 文件未找到匹配的电流点，请重新输入。")
-
+    elif current_points is None:
+        # 全电流模式
+        filtered = numeric_df
+        missing_points = []
     else:
-
+        # 默认最大电流
         idx = numeric_df[CURRENT_COLUMN].idxmax()
-
         filtered = numeric_df.loc[[idx]]
-
         missing_points = []
 
     result = filtered.copy()
@@ -1977,12 +1948,12 @@ def _extract_rth_data_impl(file_path: Path, current_points: List[float]) -> Tupl
 
 @st.cache_data(show_spinner=False)
 
-def _extract_rth_data_cached(file_path_str: str, mtime: float, current_points: Tuple[float, ...]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
+def _extract_rth_data_cached(file_path_str: str, mtime: float, current_points: Optional[Tuple[float, ...]]) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
     path = Path(file_path_str)
-    return _extract_rth_data_impl(path, list(current_points))
+    return _extract_rth_data_impl(path, list(current_points) if current_points is not None else None)
 
-def extract_rth_data(file_path: Path, current_points: List[float], *, mtime: Optional[float] = None) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
-    cached_points = tuple(current_points)
+def extract_rth_data(file_path: Path, current_points: Optional[List[float]], *, mtime: Optional[float] = None) -> Tuple[pd.DataFrame, List[float], pd.DataFrame]:
+    cached_points = tuple(current_points) if current_points is not None else None
     effective_mtime = file_path.stat().st_mtime if mtime is None else mtime
     return _extract_rth_data_cached(str(file_path), effective_mtime, cached_points)
 
@@ -2285,7 +2256,7 @@ def main() -> None:
 
         current_input = st.text_input(
             "电流点",
-            help="可选，默认最高电流点，适用于 LVI/Rth，可输入单值或范围（如 12~19），多个值用逗号或换行分隔。",
+            help="可选，默认最高电流点。输入 'a' 或 'A' 提取所有电流点。也可输入单值或范围（如 12~19）。",
             key=f"current_input_{extraction_mode}",
         )
         submit_col, refresh_col = st.columns(2)
@@ -2479,6 +2450,8 @@ def main() -> None:
                         current_points=current_points,
                         mtime=file_mtime,
                     )
+                    extracted = drop_zero_current(extracted, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
+                    lvi_full = drop_zero_current(lvi_full, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
                     selected_subset = extracted if current_points else None
                     info_parts = []
                     if missing_currents:
@@ -2502,6 +2475,8 @@ def main() -> None:
                         current_points=current_points,
                         mtime=file_mtime,
                     )
+                    extracted = drop_zero_current(extracted, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
+                    rth_full = drop_zero_current(rth_full, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
                     info_parts = []
                     if missing_currents:
                         info_parts.append(f"{context_label}: 未找到电流点 {missing_currents}")
@@ -2571,6 +2546,8 @@ def main() -> None:
                         current_points=current_points,
                         mtime=file_mtime,
                     )
+                    extracted = drop_zero_current(extracted, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
+                    rth_full_numeric = drop_zero_current(rth_full_numeric, CURRENT_COLUMN, tol=CURRENT_TOLERANCE)
 
                     if missing_currents:
                         info_messages.append(
