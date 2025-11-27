@@ -1,0 +1,21 @@
+{
+  "id": "b494d1d0-4353-4abb-908b-893f7cffede1",
+  "name": "extraction_20251127_105334_8rows_9cols",
+  "category": "extraction",
+  "created_at": "2025-11-27T10:53:34.152308",
+  "row_count": 8,
+  "columns": [
+    "壳体号",
+    "测试类型",
+    "电流(A)",
+    "功率(W)",
+    "电压(V)",
+    "电光效率(%)",
+    "波长lambda",
+    "波长shift",
+    "2A波长"
+  ],
+  "source_file": "11, 12, 13",
+  "note": null,
+  "extra": {}
+}

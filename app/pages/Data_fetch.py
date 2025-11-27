@@ -13,6 +13,13 @@ if _pages_dir not in sys.path: sys.path.insert(0, _pages_dir)
 parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path: sys.path.insert(0, parent_dir)
 
+# 导入本地存储模块
+from utils.local_storage import (
+    LocalDataStore, DataCategory, serialize_plot_sources, deserialize_plot_sources
+)
+from utils.storage_widgets import render_save_button, render_load_selector, render_receive_shared_data
+from utils.exceptions import LocalStorageError
+
 # 导入模块
 from data_fetch import (
     PLOT_ORDER, SANITIZED_PLOT_ORDER, SANITIZED_ORDER_LOOKUP, STATION_COLORS, DEFAULT_PALETTE,
@@ -86,6 +93,108 @@ def _set_analysis_mode(mode: str) -> None:
     st.session_state.pending_scroll_target = mode
 
 
+def _render_storage_section(result_df: Optional[pd.DataFrame], extraction_state: Optional[Dict]) -> None:
+    """渲染数据存储区域（保存和加载）"""
+    # 保存功能
+    if result_df is not None and not result_df.empty and extraction_state:
+        # 准备扩展数据（绘图数据源）
+        lvi_sources = st.session_state.get('lvi_plot_sources', {})
+        rth_sources = st.session_state.get('rth_plot_sources', {})
+        extra_data = None
+        if lvi_sources or rth_sources:
+            try:
+                extra_data = serialize_plot_sources(lvi_sources, rth_sources)
+            except Exception:
+                extra_data = None
+        
+        # 生成数据来源描述
+        folder_entries = extraction_state.get("folder_entries", [])
+        source_file = ", ".join(folder_entries[:3])
+        if len(folder_entries) > 3:
+            source_file += f" 等{len(folder_entries)}个"
+        
+        render_save_button(
+            df=result_df,
+            category=DataCategory.EXTRACTION,
+            extra_data=extra_data,
+            source_file=source_file,
+            key="extraction_save",
+            show_expander=True
+        )
+    
+    st.markdown("---")
+    
+    # 加载功能
+    with st.expander("📂 加载历史数据", expanded=False):
+        def _on_load_extraction(df, metadata, extra_data):
+            """加载数据后的回调函数"""
+            # 恢复 session_state
+            st.session_state[EXTRACTION_STATE_KEY] = {
+                "folder_entries": [metadata.source_file] if metadata.source_file else [],
+                "combined_frames": [df],
+                "error_messages": [],
+                "info_messages": [f"从历史数据加载: {metadata.name}"],
+                "result_df": df,
+                "current_points": metadata.extra.get("current_points", []),
+                "form_folder_input": metadata.source_file or "",
+                "form_selected_tests": metadata.extra.get("selected_tests", []),
+                "form_selected_measurements": metadata.extra.get("selected_measurements", []),
+                "form_current_input": metadata.extra.get("current_input", ""),
+                "form_mode": metadata.extra.get("form_mode", MODULE_MODE),
+            }
+            
+            # 恢复绘图数据源
+            if extra_data:
+                try:
+                    lvi_sources, rth_sources = deserialize_plot_sources(extra_data)
+                    st.session_state['lvi_plot_sources'] = lvi_sources
+                    st.session_state['rth_plot_sources'] = rth_sources
+                except Exception:
+                    st.session_state['lvi_plot_sources'] = {}
+                    st.session_state['rth_plot_sources'] = {}
+            else:
+                st.session_state['lvi_plot_sources'] = {}
+                st.session_state['rth_plot_sources'] = {}
+        
+        result = render_load_selector(
+            category=DataCategory.EXTRACTION,
+            key="extraction_load",
+            show_details=True,
+            on_load_callback=_on_load_extraction
+        )
+        
+        if result:
+            st.rerun()
+        
+        # 接收其他模块共享的数据
+        def _on_receive_shared(df, source_metadata, compatibility):
+            """接收共享数据后的回调函数"""
+            st.session_state[EXTRACTION_STATE_KEY] = {
+                "folder_entries": [f"共享自{source_metadata.category.value}"],
+                "combined_frames": [df],
+                "error_messages": [],
+                "info_messages": [f"从 {source_metadata.name} 接收数据"],
+                "result_df": df,
+                "current_points": [],
+                "form_folder_input": "",
+                "form_selected_tests": [],
+                "form_selected_measurements": [],
+                "form_current_input": "",
+                "form_mode": MODULE_MODE,
+            }
+            st.session_state['lvi_plot_sources'] = {}
+            st.session_state['rth_plot_sources'] = {}
+        
+        shared_result = render_receive_shared_data(
+            target_category=DataCategory.EXTRACTION,
+            key="extraction_receive",
+            on_receive_callback=_on_receive_shared
+        )
+        
+        if shared_result:
+            st.rerun()
+
+
 def render_sidebar(result_df: Optional[pd.DataFrame], extraction_state: Optional[Dict]) -> None:
     """渲染侧边栏"""
     with st.sidebar:
@@ -110,6 +219,10 @@ def render_sidebar(result_df: Optional[pd.DataFrame], extraction_state: Optional
             if TEST_TYPE_COLUMN in result_df.columns:
                 c3.metric("站别数", result_df[TEST_TYPE_COLUMN].nunique())
             st.markdown("---")
+        
+        # 数据保存/加载功能
+        st.markdown("### 💾 数据存储")
+        _render_storage_section(result_df, extraction_state)
 
 
 def render_input_form(extraction_mode: str) -> Tuple[bool, bool, str, List[str], List[str], str]:

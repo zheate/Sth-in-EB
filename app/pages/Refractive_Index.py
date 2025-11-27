@@ -53,6 +53,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def _calculate_reflectance(n, k):
+    """计算反射率 R = ((n-1)^2 + k^2) / ((n+1)^2 + k^2)"""
+    if n is None:
+        return None
+    k = k if k is not None else 0.0
+    return ((n - 1) ** 2 + k ** 2) / ((n + 1) ** 2 + k ** 2)
+
+
 def _plot_refractive_index(data_list):
     span = get_wavelength_span(data_list)
     if not span:
@@ -69,11 +77,14 @@ def _plot_refractive_index(data_list):
     for wl in wls:
         n, k = get_refractive_index(data_list, wl)
         if n is not None:
+            k_val = k if k is not None else 0.0
+            R = _calculate_reflectance(n, k_val)
             rows.append(
                 {
                     "wavelength_nm": wl * 1000,
                     "n": n,
-                    "k": k if k is not None else 0.0,
+                    "k": k_val,
+                    "R": R,
                 }
             )
 
@@ -81,22 +92,37 @@ def _plot_refractive_index(data_list):
         return None
 
     df = pd.DataFrame(rows)
+    has_k = (df["k"] > 0).any()
 
+    # 创建独立的子图
     base = alt.Chart(df).encode(
-        x=alt.X("wavelength_nm", title="波长 (nm)")
+        x=alt.X("wavelength_nm:Q", title="波长 (nm)")
+    ).properties(
+        width="container",
+        height=120
     )
-    line_n = base.mark_line(color="#1f77b4").encode(
-        y=alt.Y("n", title="折射率 n")
-    )
-    if (df["k"] > 0).any():
-        line_k = base.mark_line(color="#d62728", strokeDash=[6, 4]).encode(
-            y=alt.Y("k", title="消光系数 k")
-        )
-        chart = alt.layer(line_n, line_k).resolve_scale(y="independent")
-    else:
-        chart = line_n
 
-    return chart.properties(title="折射率与波长曲线").interactive()
+    chart_n = base.mark_line(color="#1f77b4").encode(
+        y=alt.Y("n:Q", title="折射率 n")
+    )
+
+    chart_R = base.mark_line(color="#2ca02c").encode(
+        y=alt.Y("R:Q", title="反射率 R")
+    )
+
+    if has_k:
+        chart_k = base.mark_line(color="#d62728").encode(
+            y=alt.Y("k:Q", title="消光系数 k")
+        )
+        chart = alt.vconcat(chart_n, chart_k, chart_R).properties(
+            title="折射率、消光系数与反射率曲线"
+        )
+    else:
+        chart = alt.vconcat(chart_n, chart_R).properties(
+            title="折射率与反射率曲线"
+        )
+
+    return chart
 
 
 def main():
@@ -140,11 +166,14 @@ def main():
     wavelength_um = wavelength_nm / 1000.0
 
     n_val, k_val = get_refractive_index(material_data["DATA"], wavelength_um)
-    col1, col2 = st.columns(2)
+    R_val = _calculate_reflectance(n_val, k_val)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("折射率 n", f"{n_val:.6f}" if n_val is not None else "—")
     with col2:
         st.metric("消光系数 k", f"{(k_val or 0):.4e}" if n_val is not None else "—")
+    with col3:
+        st.metric("反射率 R", f"{R_val:.4%}" if R_val is not None else "—")
 
     chart = _plot_refractive_index(material_data["DATA"])
     if chart:

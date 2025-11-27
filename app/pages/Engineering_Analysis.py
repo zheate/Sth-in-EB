@@ -2,8 +2,19 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import os
+import sys
 import glob
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+# 添加父目录到路径以导入模块
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# 导入本地存储模块
+from utils.local_storage import LocalDataStore, DataCategory
+from utils.storage_widgets import render_save_button, render_load_selector, render_receive_shared_data
+from utils.exceptions import LocalStorageError
 
 st.set_page_config(page_title="工程分析", layout="wide", page_icon="📊")
 
@@ -58,7 +69,99 @@ def load_data():
     except Exception as e:
         return None, str(e)
 
+
+def _render_analysis_storage_section(df: pd.DataFrame, source_file: str) -> None:
+    """渲染工程分析页面的数据存储区域（保存和加载）"""
+    # 保存功能
+    if df is not None and not df.empty:
+        # 生成数据来源描述
+        source_name = os.path.basename(source_file) if source_file else ""
+        
+        with st.sidebar.expander("💾 保存数据", expanded=False):
+            st.markdown("**数据概览**")
+            col1, col2 = st.columns(2)
+            col1.metric("行数", len(df))
+            col2.metric("列数", len(df.columns))
+            
+            # 自定义文件名输入
+            custom_name = st.text_input(
+                "自定义文件名（可选）",
+                placeholder="留空则自动生成",
+                key="analysis_save_custom_name",
+                help="输入自定义文件名，不需要扩展名。"
+            )
+            
+            # 备注输入
+            note = st.text_area(
+                "备注（可选）",
+                placeholder="添加备注信息...",
+                key="analysis_save_note",
+                height=60
+            )
+            
+            # 保存按钮
+            if st.button("💾 确认保存", key="analysis_save_confirm", use_container_width=True):
+                try:
+                    store = LocalDataStore()
+                    dataset_id = store.save(
+                        df=df,
+                        category=DataCategory.ANALYSIS,
+                        name=custom_name if custom_name.strip() else None,
+                        custom_filename=custom_name if custom_name.strip() else None,
+                        note=note if note.strip() else None,
+                        source_file=source_name,
+                    )
+                    st.success(f"✅ 保存成功！")
+                    st.caption(f"ID: {dataset_id[:8]}...")
+                except LocalStorageError as e:
+                    st.error(f"保存失败: {e}")
+                except Exception as e:
+                    st.error(f"保存时发生错误: {e}")
+    
+    # 加载功能
+    with st.sidebar.expander("📂 加载历史数据", expanded=False):
+        result = render_load_selector(
+            category=DataCategory.ANALYSIS,
+            key="analysis_load",
+            show_details=True,
+            on_load_callback=None  # 工程分析页面直接显示加载的数据
+        )
+        
+        if result:
+            loaded_df, metadata, _ = result
+            # 将加载的数据存储到 session_state
+            st.session_state['analysis_loaded_df'] = loaded_df
+            st.session_state['analysis_loaded_metadata'] = metadata
+            st.rerun()
+        
+        # 接收其他模块共享的数据
+        def _on_receive_shared_analysis(df, source_metadata, compatibility):
+            """接收共享数据后的回调函数"""
+            st.session_state['analysis_loaded_df'] = df
+            st.session_state['analysis_loaded_metadata'] = source_metadata
+        
+        shared_result = render_receive_shared_data(
+            target_category=DataCategory.ANALYSIS,
+            key="analysis_receive",
+            on_receive_callback=_on_receive_shared_analysis
+        )
+        
+        if shared_result:
+            st.rerun()
+
+
 df, msg = load_data()
+
+# 检查是否有从历史数据加载的数据
+if 'analysis_loaded_df' in st.session_state and st.session_state['analysis_loaded_df'] is not None:
+    df = st.session_state['analysis_loaded_df']
+    metadata = st.session_state.get('analysis_loaded_metadata')
+    msg = f"历史数据: {metadata.name}" if metadata else "历史数据"
+    # 显示清除按钮
+    if st.sidebar.button("🔄 返回原始数据", use_container_width=True):
+        st.session_state.pop('analysis_loaded_df', None)
+        st.session_state.pop('analysis_loaded_metadata', None)
+        st.rerun()
 
 if df is None:
     st.error(f"❌ 加载数据失败: {msg}")
@@ -152,6 +255,11 @@ else:
     
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**当前筛选结果: {len(df)} 条记录**")
+    
+    # 数据保存/加载功能
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 💾 数据存储")
+    _render_analysis_storage_section(df, msg)
 
     # Overview Metrics
     with st.container(border=True):

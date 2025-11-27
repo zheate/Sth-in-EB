@@ -2,6 +2,7 @@
 streamlit>=1.50.0
 pandas>=1.5.0
 numpy>=1.23.0
+pyarrow>=14.0.0
 
 # 数据可视化
 altair>=5.0.0
@@ -27,3 +28,7 @@ cython>=0.29.0
 # Desktop packaging
 streamlit-desktop-app==0.3.4
 pyinstaller>=6.3.0
+
+# Testing
+pytest>=7.0.0
+hypothesis>=6.0.0

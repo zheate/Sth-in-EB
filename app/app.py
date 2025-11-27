@@ -9,7 +9,68 @@ from config import APP_ICON, APP_TITLE, PAGE_LAYOUT, SIDEBAR_STATE
 APP_ROOT = Path(__file__).resolve().parent
 PAGES_ROOT = APP_ROOT / "pages"
 
-def render_home_page() -> None:
+DATA_PAGES = [
+    {
+        "path": PAGES_ROOT / "Data_fetch.py",
+        "title": "数据提取",
+        "icon": "📥",
+        "desc": "多站别数据合并、趋势分析、拟合预测、箱线图分析",
+    },
+    {
+        "path": PAGES_ROOT / "Progress.py",
+        "title": "进度追踪",
+        "icon": "📈",
+        "desc": "WIP进度监控、生产进度可视化、甘特图展示",
+    },
+    {
+        "path": PAGES_ROOT / "TestAnalysis.py",
+        "title": "测试数据分析",
+        "icon": "📊",
+        "desc": "测试报表筛选与统计分析",
+    },
+    {
+        "path": PAGES_ROOT / "COS_Filter.py",
+        "title": "COS筛选",
+        "icon": "🔍",
+        "desc": "按波长和仓库筛选批次实例数据",
+    },
+    {
+        "path": PAGES_ROOT / "Engineering_Analysis.py",
+        "title": "工程分析",
+        "icon": "📉",
+        "desc": "不良分析、帕累托分析、交叉分析、趋势分析",
+    },
+    {
+        "path": PAGES_ROOT / "Data_Manager.py",
+        "title": "数据管理",
+        "icon": "📁",
+        "desc": "管理已保存的数据集，支持查看、删除和导出",
+    },
+]
+
+TOOL_PAGES = [
+    {
+        "path": PAGES_ROOT / "NA_Calculator.py",
+        "title": "NA计算器",
+        "icon": "🎯",
+        "desc": "数值孔径计算、端帽光阑计算、材料库管理",
+    },
+    {
+        "path": PAGES_ROOT / "BFD_Calculator.py",
+        "title": "BFD计算器",
+        "icon": "🔧",
+        "desc": "后焦距计算、光学系统参数优化",
+    },
+    {
+        "path": PAGES_ROOT / "Refractive_Index.py",
+        "title": "Refractive_Index",
+        "icon": "🔍",
+        "desc": "查询数千种光学材料折射率、可视化展示",
+    },
+]
+
+
+def render_home_page(enable_data: bool = True, enable_tools: bool = True) -> None:
     st.set_page_config(
         page_title=APP_TITLE,
         page_icon=APP_ICON,
@@ -102,7 +163,11 @@ def render_home_page() -> None:
 
     st.markdown("### 🛠 系统状态")
 
-    available_pages = [path for path in PAGES_ROOT.glob("*.py")]
+    available_pages = []
+    if enable_data:
+        available_pages.extend(DATA_PAGES)
+    if enable_tools:
+        available_pages.extend(TOOL_PAGES)
     status_cols = st.columns(5)
     with status_cols[0]:
         st.metric("Python 版本", platform.python_version())
@@ -143,70 +208,69 @@ def render_home_page() -> None:
     )
 
     st.markdown("### 🧭 功能模块")
+    if enable_data:
+        st.markdown("#### 📊 数据分析")
+        analysis_pages = pd.DataFrame(
+            [{"模块": f"{page['icon']} {page['title']}", "功能": page["desc"]} for page in DATA_PAGES]
+        )
+        st.dataframe(analysis_pages, hide_index=True, use_container_width=True, height=200)
     
-    # 数据分析模块
-    st.markdown("#### 📊 数据分析")
-    analysis_pages = pd.DataFrame([
-        {"模块": "📥 数据提取", 
-         "功能": "多站别数据合并、趋势分析、拟合预测、箱线图分析"},
-        {"模块": "📈 进度追踪", 
-         "功能": "WIP进度监控、生产进度可视化、甘特图展示"},
-        {"模块": "📊 测试数据分析", 
-         "功能": "测试报表筛选与统计分析"},
-        {"模块": "🔍 COS筛选", 
-         "功能": "按波长和仓库筛选批次实例数据"},
-        {"模块": "📉 工程分析", 
-         "功能": "不良分析、帕累托分析、交叉分析、趋势分析"},
-    ])
-    st.dataframe(analysis_pages, hide_index=True, use_container_width=True, height=200)
-    
-    # 工具模块
-    st.markdown("#### 🔧 计算工具")
-    tool_pages = pd.DataFrame([
-        {"工具": "🎯 NA计算器", 
-         "功能": "数值孔径计算、端帽光阑计算、材料库管理"},
-        {"工具": "🔧 BFD计算器", 
-         "功能": "后焦距计算、光学系统参数优化"},
-        {"工具": "🔍 折射率查询", 
-         "功能": "查询数千种光学材料折射率、可视化展示"},
-    ])
-    st.dataframe(tool_pages, hide_index=True, use_container_width=True, height=140)
+    if enable_tools:
+        st.markdown("#### 🔧 计算工具")
+        tool_pages = pd.DataFrame(
+            [{"工具": f"{page['icon']} {page['title']}", "功能": page["desc"]} for page in TOOL_PAGES]
+        )
+        st.dataframe(tool_pages, hide_index=True, use_container_width=True, height=140)
     
     st.markdown("---")
     st.markdown("### 🎯 核心特性")
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("**📈 数据分析**")
-        st.markdown("- 多维度对比分析\n- 数据拟合预测\n- 帕累托分析\n- 交叉分析热力图")
-    with col2:
-        st.markdown("**🔬 光学计算**")
-        st.markdown("- NA/BFD计算\n- 折射率查询\n- 材料数据库\n- 实时计算反馈")
-    with col3:
-        st.markdown("**💾 数据处理**")
-        st.markdown("- 智能缓存\n- 批量处理\n- 多格式导出\n- 数据清洗")
+    feature_sections = []
+    if enable_data:
+        feature_sections.append(("📈 数据分析", "- 多维度对比分析\n- 数据拟合预测\n- 帕累托分析\n- 交叉分析热力图"))
+    if enable_tools:
+        feature_sections.append(("🔬 光学计算", "- NA/BFD计算\n- 折射率查询\n- 材料数据库\n- 实时计算反馈"))
+    feature_sections.append(("💾 数据处理", "- 智能缓存\n- 批量处理\n- 多格式导出\n- 数据清洗"))
+    
+    cols = st.columns(len(feature_sections))
+    for col, (title, body) in zip(cols, feature_sections):
+        col.markdown(f"**{title}**")
+        col.markdown(body)
 
-def main() -> None:
+
+def build_pages(enable_data: bool = True, enable_tools: bool = True) -> dict:
+    def _home():
+        render_home_page(enable_data=enable_data, enable_tools=enable_tools)
+
     pages = {
         "主页": [
-            st.Page(render_home_page, title=APP_TITLE, icon=APP_ICON, default=True),
-        ],
-        "数据分析": [
-            st.Page(PAGES_ROOT / "Data_fetch.py", title="数据提取", icon="📥"),
-            st.Page(PAGES_ROOT / "Progress.py", title="进度追踪", icon="📈"),
-            st.Page(PAGES_ROOT / "TestAnalysis.py", title="测试数据分析", icon="📊"),
-            st.Page(PAGES_ROOT / "COS_Filter.py", title="COS筛选", icon="🔍"),
-            st.Page(PAGES_ROOT / "Engineering_Analysis.py", title="工程分析", icon="📉"),
-        ],
-        "工具": [
-            st.Page(PAGES_ROOT / "NA_Calculator.py", title="NA计算器", icon="🎯"),
-            st.Page(PAGES_ROOT / "BFD_Calculator.py", title="BFD计算器", icon="🔧"),
-            st.Page(PAGES_ROOT / "Refractive_Index.py", title="Refractive_Index", icon="🔍"),
+            st.Page(_home, title=APP_TITLE, icon=APP_ICON, default=True),
         ],
     }
 
+    if enable_data:
+        pages["数据分析"] = [
+            st.Page(page_cfg["path"], title=page_cfg["title"], icon=page_cfg["icon"])
+            for page_cfg in DATA_PAGES
+        ]
+
+    if enable_tools:
+        pages["工具"] = [
+            st.Page(page_cfg["path"], title=page_cfg["title"], icon=page_cfg["icon"])
+            for page_cfg in TOOL_PAGES
+        ]
+
+    return pages
+
+
+def run_app(enable_data: bool = True, enable_tools: bool = True) -> None:
+    pages = build_pages(enable_data=enable_data, enable_tools=enable_tools)
     page = st.navigation(pages, position="sidebar")
     page.run()
+
+
+def main() -> None:
+    run_app()
 
 
 if __name__ == "__main__":

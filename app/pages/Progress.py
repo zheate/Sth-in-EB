@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from datetime import datetime
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 import sys
 from pathlib import Path
 import time
@@ -11,6 +11,11 @@ import time
 # 添加父目录到路径以导入config
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import DEFAULT_DATA_FOLDER, WIP_REPORT_KEYWORDS
+
+# 导入本地存储模块
+from utils.local_storage import LocalDataStore, DataCategory
+from utils.storage_widgets import render_save_button, render_load_selector, render_receive_shared_data
+from utils.exceptions import LocalStorageError
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 
@@ -457,10 +462,79 @@ _session_defaults = {
     'progress_df': None, 'progress_raw_df': None, 'uploaded_filename': None,
     'progress_dir_cache': {}, 'progress_data_cache': {},
     'progress_data_source': "📁 从文件夹选择",
+    'progress_filter_conditions': {},  # 存储筛选条件
 }
 for key, default in _session_defaults.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+
+def _render_progress_storage_section() -> None:
+    """渲染进度追踪页面的数据存储区域（保存和加载）"""
+    progress_df = st.session_state.get('progress_df')
+    
+    # 保存功能
+    if progress_df is not None and not progress_df.empty:
+        # 准备扩展数据（筛选条件）
+        extra_data = {
+            "filter_conditions": st.session_state.get('progress_filter_conditions', {}),
+            "uploaded_filename": st.session_state.get('uploaded_filename', ''),
+        }
+        
+        # 生成数据来源描述
+        source_file = st.session_state.get('uploaded_filename', '')
+        
+        render_save_button(
+            df=progress_df,
+            category=DataCategory.PROGRESS,
+            extra_data=extra_data,
+            source_file=source_file,
+            key="progress_save",
+            show_expander=True
+        )
+    
+    st.markdown("---")
+    
+    # 加载功能
+    with st.expander("📂 加载历史数据", expanded=False):
+        def _on_load_progress(df, metadata, extra_data):
+            """加载数据后的回调函数"""
+            # 恢复 session_state
+            st.session_state['progress_df'] = df
+            st.session_state['progress_raw_df'] = df  # 使用相同的 df 作为原始数据
+            st.session_state['uploaded_filename'] = metadata.source_file or metadata.name
+            
+            # 恢复筛选条件
+            if extra_data:
+                st.session_state['progress_filter_conditions'] = extra_data.get('filter_conditions', {})
+        
+        result = render_load_selector(
+            category=DataCategory.PROGRESS,
+            key="progress_load",
+            show_details=True,
+            on_load_callback=_on_load_progress
+        )
+        
+        if result:
+            st.rerun()
+        
+        # 接收其他模块共享的数据
+        def _on_receive_shared_progress(df, source_metadata, compatibility):
+            """接收共享数据后的回调函数"""
+            st.session_state['progress_df'] = df
+            st.session_state['progress_raw_df'] = df
+            st.session_state['uploaded_filename'] = f"共享自 {source_metadata.name}"
+            st.session_state['progress_filter_conditions'] = {}
+        
+        shared_result = render_receive_shared_data(
+            target_category=DataCategory.PROGRESS,
+            key="progress_receive",
+            on_receive_callback=_on_receive_shared_progress
+        )
+        
+        if shared_result:
+            st.rerun()
+
 
 # 侧边栏 - 数据源选择和设置
 with st.sidebar:
@@ -485,6 +559,11 @@ with st.sidebar:
         st.metric("壳体总数", len(st.session_state.progress_df))
         if st.session_state.uploaded_filename:
             st.caption(f"📄 {st.session_state.uploaded_filename}")
+    
+    # 数据保存/加载功能
+    st.divider()
+    st.header("💾 数据存储")
+    _render_progress_storage_section()
 
 uploaded_file = None
 selected_file_path = None

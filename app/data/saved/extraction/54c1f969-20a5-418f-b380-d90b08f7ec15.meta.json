@@ -1,0 +1,21 @@
+{
+  "id": "54c1f969-20a5-418f-b380-d90b08f7ec15",
+  "name": "M20-AM-C",
+  "category": "extraction",
+  "created_at": "2025-11-27T10:24:00.256275",
+  "row_count": 8,
+  "columns": [
+    "壳体号",
+    "测试类型",
+    "电流(A)",
+    "功率(W)",
+    "电压(V)",
+    "电光效率(%)",
+    "波长lambda",
+    "波长shift",
+    "2A波长"
+  ],
+  "source_file": "12, 11, 13",
+  "note": null,
+  "extra": {}
+}
