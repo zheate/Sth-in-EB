@@ -2016,7 +2016,7 @@ def render_analysis_results_table():
     pass_df, fail_df, stats = service.apply_thresholds(df, st.session_state.dm_thresholds)
     
     # Render statistics (Task 10.4)
-    _render_filtering_statistics(stats)
+    _render_filtering_statistics(stats, df)
     
     st.divider()
     
@@ -2082,8 +2082,181 @@ def render_analysis_results_table():
             height=table_height
         )
 
+    # 电流-功率曲线图（使用全电流点数据）
+    st.divider()
+    _render_current_power_curve()
 
-def _render_filtering_statistics(stats: Dict[str, Any]):
+
+def _render_current_power_curve():
+    """
+    绘制各电流点上功率和电光效率的双Y轴曲线。
+    使用缓存中当前站别的全部电流点数据。
+    """
+    # 从缓存加载全部电流点数据
+    if not st.session_state.dm_selected_product_type_id or not st.session_state.dm_selected_orders:
+        return
+    
+    service = get_data_analysis_service()
+    df, _ = service.load_analysis_cache(
+        product_type_id=st.session_state.dm_selected_product_type_id,
+        order_ids=st.session_state.dm_selected_orders,
+        stations=None,  # 加载全部数据
+    )
+    
+    if df is None or df.empty:
+        return
+    
+    # 按当前选择的站别筛选
+    selected_stations = st.session_state.get("dm_selected_stations", [])
+    if selected_stations and TEST_TYPE_COLUMN in df.columns:
+        df = df[df[TEST_TYPE_COLUMN].isin(selected_stations)]
+    
+    if df.empty:
+        return
+    
+    # 查找电流列、功率列和电光效率列
+    current_col = None
+    power_col = None
+    eff_col = None
+    
+    for col in df.columns:
+        if "电流" in col and current_col is None:
+            current_col = col
+        if "功率" in col and power_col is None:
+            power_col = col
+        if "电光效率" in col and eff_col is None:
+            eff_col = col
+    
+    if not current_col or not power_col:
+        return
+    
+    # 准备数据
+    cols_to_use = [current_col, power_col]
+    if eff_col:
+        cols_to_use.append(eff_col)
+    
+    plot_df = df[cols_to_use].copy()
+    plot_df[current_col] = pd.to_numeric(plot_df[current_col], errors="coerce")
+    plot_df[power_col] = pd.to_numeric(plot_df[power_col], errors="coerce")
+    if eff_col:
+        plot_df[eff_col] = pd.to_numeric(plot_df[eff_col], errors="coerce")
+    plot_df = plot_df.dropna(subset=[current_col, power_col])
+    
+    if plot_df.empty:
+        return
+    
+    # 按电流点分组计算平均值
+    agg_dict = {power_col: ["mean", "std", "count"]}
+    if eff_col:
+        agg_dict[eff_col] = "mean"
+    
+    avg_df = plot_df.groupby(current_col).agg(agg_dict).reset_index()
+    avg_df.columns = ["电流 (A)", "平均功率 (W)", "功率标准差", "数量"] + (["平均效率 (%)"] if eff_col else [])
+    avg_df = avg_df.sort_values("电流 (A)")
+    
+    if avg_df.empty:
+        return
+    
+    st.markdown("#### 📈 电流-功率-效率曲线")
+    
+    with st.container(border=True):
+        # 双Y轴图表
+        base = alt.Chart(avg_df).encode(
+            x=alt.X("电流 (A):Q", title="电流 (A)", scale=alt.Scale(zero=False)),
+        )
+        
+        # 左Y轴：功率（蓝色）
+        power_line = base.mark_line(
+            color="#6366f1",
+            strokeWidth=2.5,
+        ).encode(
+            y=alt.Y("平均功率 (W):Q", title="平均功率 (W)", scale=alt.Scale(zero=False)),
+            tooltip=[
+                alt.Tooltip("电流 (A):Q", format=".1f"),
+                alt.Tooltip("平均功率 (W):Q", format=".2f"),
+                alt.Tooltip("数量:Q"),
+            ],
+        )
+        
+        power_points = base.mark_circle(
+            color="#6366f1",
+            size=60,
+        ).encode(
+            y=alt.Y("平均功率 (W):Q"),
+            tooltip=[
+                alt.Tooltip("电流 (A):Q", format=".1f"),
+                alt.Tooltip("平均功率 (W):Q", format=".2f"),
+            ],
+        )
+        
+        power_chart = (power_line + power_points)
+        
+        if eff_col and "平均效率 (%)" in avg_df.columns:
+            # 右Y轴：电光效率（橙色）
+            eff_line = base.mark_line(
+                color="#f59e0b",
+                strokeWidth=2.5,
+                strokeDash=[5, 3],
+            ).encode(
+                y=alt.Y("平均效率 (%):Q", title="平均效率 (%)", scale=alt.Scale(zero=False)),
+                tooltip=[
+                    alt.Tooltip("电流 (A):Q", format=".1f"),
+                    alt.Tooltip("平均效率 (%):Q", format=".2f"),
+                ],
+            )
+            
+            eff_points = base.mark_circle(
+                color="#f59e0b",
+                size=60,
+            ).encode(
+                y=alt.Y("平均效率 (%):Q"),
+                tooltip=[
+                    alt.Tooltip("电流 (A):Q", format=".1f"),
+                    alt.Tooltip("平均效率 (%):Q", format=".2f"),
+                ],
+            )
+            
+            # 使用 layer + resolve_scale 实现双Y轴
+            chart = alt.layer(
+                power_chart,
+                eff_line + eff_points
+            ).resolve_scale(
+                y="independent"
+            ).properties(
+                height=320
+            )
+        else:
+            chart = power_chart.properties(height=320)
+        
+        # 图例说明
+        if eff_col:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("🔵 **功率 (W)** - 左Y轴")
+            with col2:
+                st.markdown("🟠 **电光效率 (%)** - 右Y轴")
+        
+        st.altair_chart(chart, use_container_width=True, theme="streamlit")
+        
+        # 显示数据表格
+        format_dict = {
+            "电流 (A)": "{:.1f}",
+            "平均功率 (W)": "{:.2f}",
+            "功率标准差": "{:.2f}",
+            "数量": "{:.0f}"
+        }
+        if "平均效率 (%)" in avg_df.columns:
+            format_dict["平均效率 (%)"] = "{:.2f}"
+        
+        with st.expander("📋 查看数据", expanded=False):
+            st.dataframe(
+                avg_df.style.format(format_dict),
+                use_container_width=True,
+                hide_index=True
+            )
+
+
+def _render_filtering_statistics(stats: Dict[str, Any], df: pd.DataFrame = None):
     """
     渲染筛选统计信息。
     
@@ -2092,29 +2265,51 @@ def _render_filtering_statistics(stats: Dict[str, Any]):
     
     Args:
         stats: 统计信息字典
+        df: 数据 DataFrame，用于计算平均值
     """
     st.markdown("#### 📈 筛选统计")
     
-    col1, col2, col3, col4 = st.columns(4)
+    # 毛玻璃效果容器
+    with st.container(border=True):
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("总数据量", stats["total_count"])
+        
+        with col2:
+            st.metric("合格数量", stats["pass_count"], delta=None)
+        
+        with col3:
+            st.metric("不合格数量", stats["fail_count"], delta=None)
+        
+        with col4:
+            pass_rate = stats["pass_rate"]
+            # Color code the pass rate
+            if pass_rate >= 95:
+                st.metric("合格率", f"{pass_rate:.1f}%", delta="优秀")
+            elif pass_rate >= 80:
+                st.metric("合格率", f"{pass_rate:.1f}%", delta="良好")
+            else:
+                st.metric("合格率", f"{pass_rate:.1f}%", delta="需改进", delta_color="inverse")
     
-    with col1:
-        st.metric("总数据量", stats["total_count"])
-    
-    with col2:
-        st.metric("合格数量", stats["pass_count"], delta=None)
-    
-    with col3:
-        st.metric("不合格数量", stats["fail_count"], delta=None)
-    
-    with col4:
-        pass_rate = stats["pass_rate"]
-        # Color code the pass rate
-        if pass_rate >= 95:
-            st.metric("合格率", f"{pass_rate:.1f}%", delta="优秀")
-        elif pass_rate >= 80:
-            st.metric("合格率", f"{pass_rate:.1f}%", delta="良好")
-        else:
-            st.metric("合格率", f"{pass_rate:.1f}%", delta="需改进", delta_color="inverse")
+    # 计算并显示平均值指标
+    if df is not None and not df.empty:
+        avg_metrics = _calculate_average_metrics(df)
+        if avg_metrics:
+            with st.container(border=True):
+                cols = st.columns(5)
+                metric_items = [
+                    ("功率", "W"),
+                    ("电压", "V"),
+                    ("电光效率", "%"),
+                    ("电流", "A"),
+                    ("波长", "nm"),
+                ]
+                for i, (name, unit) in enumerate(metric_items):
+                    with cols[i]:
+                        val = avg_metrics.get(name)
+                        if val is not None:
+                            st.metric(f"平均{name} ({unit})", f"{val:.2f}")
     
     # Failure reason analysis (Task 10.4)
     failure_reasons = stats.get("failure_reasons", {})
@@ -2132,6 +2327,40 @@ def _render_filtering_statistics(stats: Dict[str, Any]):
                     st.progress(min(pct / 100, 1.0), text=f"{col_name}")
                 with col2:
                     st.caption(f"{fail_count} 条 ({pct:.1f}%)")
+
+
+def _calculate_average_metrics(df: pd.DataFrame) -> Dict[str, Optional[float]]:
+    """
+    计算数据的平均值指标。
+    
+    Args:
+        df: 数据 DataFrame
+        
+    Returns:
+        包含各指标平均值的字典
+    """
+    result = {}
+    
+    # 定义要计算的指标及其列名关键字
+    metrics = {
+        "功率": "功率",
+        "电压": "电压",
+        "电光效率": "电光效率",
+        "电流": "电流",
+        "波长": "波长",
+    }
+    
+    for metric_name, keyword in metrics.items():
+        # 找到包含关键字的列
+        matching_cols = [col for col in df.columns if keyword in col]
+        if matching_cols:
+            # 取第一个匹配列的平均值
+            col = matching_cols[0]
+            values = pd.to_numeric(df[col], errors="coerce").dropna()
+            if not values.empty:
+                result[metric_name] = float(values.mean())
+    
+    return result
 
 
 def _apply_threshold_highlighting(df: pd.DataFrame, thresholds: Dict) -> pd.DataFrame:
