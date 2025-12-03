@@ -64,6 +64,7 @@ def render_save_button(
     source_file: Optional[str] = None,
     key: str = "save_btn",
     show_expander: bool = True,
+    delete_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     渲染保存按钮和对话框
@@ -78,6 +79,7 @@ def render_save_button(
         source_file: 原始数据来源描述
         key: Streamlit 组件的唯一键
         show_expander: 是否使用 expander 包装（默认 True）
+        delete_id: 如果提供了 dataset_id，则显示删除按钮
     
     Returns:
         保存成功返回 dataset_id，否则返回 None
@@ -131,26 +133,37 @@ def render_save_button(
             help="可以添加备注信息，方便后续查找和识别数据集。"
         )
         
-        # 保存按钮
-        if st.button("💾 确认保存", key=f"{key}_confirm", use_container_width=True):
-            try:
-                with st.spinner("正在保存..."):
-                    dataset_id = store.save(
-                        df=df,
-                        category=category,
-                        name=custom_name if custom_name.strip() else None,
-                        custom_filename=custom_name if custom_name.strip() else None,
-                        note=note if note.strip() else None,
-                        extra_data=extra_data,
-                        source_file=source_file,
-                    )
-                st.success(f"✅ 保存成功！")
-                st.caption(f"数据集 ID: {dataset_id[:8]}...")
-                saved_id = dataset_id
-            except LocalStorageError as e:
-                st.error(f"保存失败: {e}")
-            except Exception as e:
-                st.error(f"保存时发生错误: {e}")
+        # 操作按钮（确认/删除同一行）
+        col_confirm, col_delete = st.columns([3, 1])
+        with col_confirm:
+            if st.button("💾 确认保存", key=f"{key}_confirm", use_container_width=True):
+                try:
+                    with st.spinner("正在保存..."):
+                        dataset_id = store.save(
+                            df=df,
+                            category=category,
+                            name=custom_name if custom_name.strip() else None,
+                            custom_filename=custom_name if custom_name.strip() else None,
+                            note=note if note.strip() else None,
+                            extra_data=extra_data,
+                            source_file=source_file,
+                        )
+                    st.success(f"✅ 保存成功！")
+                    st.caption(f"数据集 ID: {dataset_id[:8]}...")
+                    saved_id = dataset_id
+                except LocalStorageError as e:
+                    st.error(f"保存失败: {e}")
+                except Exception as e:
+                    st.error(f"保存时发生错误: {e}")
+        with col_delete:
+            if delete_id:
+                if st.button("🗑️ 删除此记录", key=f"{key}_delete", use_container_width=True, type="secondary"):
+                    try:
+                        store.delete(delete_id)
+                        st.success("✅ 已删除记录")
+                        st.rerun()
+                    except LocalStorageError as e:
+                        st.error(f"删除失败: {e}")
     
     if show_expander:
         with st.expander("💾 保存数据", expanded=st.session_state[state_key]):
@@ -204,8 +217,8 @@ def render_load_selector(
         st.info(f"暂无{category_label}类型的已保存数据集")
         return None
     
-    # 构建选择项
-    options = ["-- 选择数据集 --"]
+    # 构建选择项（去掉占位符）
+    options = []
     option_map = {}  # 显示文本 -> dataset_id
     
     for meta in datasets:
@@ -216,16 +229,13 @@ def render_load_selector(
         options.append(display_text)
         option_map[display_text] = meta.id
     
-    # 选择框
+    # 选择框（默认选中列表第一项）
     selected = st.selectbox(
         "选择要加载的数据集",
         options,
         key=f"{key}_select",
         help="选择一个已保存的数据集进行加载"
     )
-    
-    if selected == "-- 选择数据集 --":
-        return None
     
     dataset_id = option_map.get(selected)
     if not dataset_id:
@@ -252,8 +262,14 @@ def render_load_selector(
                 if meta.source_file:
                     st.caption(f"📄 来源: {meta.source_file}")
     
-    # 加载按钮
-    if st.button("📂 加载数据", key=f"{key}_load_btn", use_container_width=True):
+    # 加载 / 删除按钮
+    col_load, col_delete = st.columns([1, 1])
+    with col_load:
+        load_clicked = st.button("📂 加载数据", key=f"{key}_load_btn", use_container_width=True)
+    with col_delete:
+        delete_clicked = st.button("🗑️ 删除", key=f"{key}_delete_btn", use_container_width=True)
+
+    if load_clicked:
         try:
             with st.spinner("正在加载..."):
                 df, metadata, extra_data = store.load(dataset_id)
@@ -272,6 +288,16 @@ def render_load_selector(
             st.error(f"加载失败: {e}")
         except Exception as e:
             st.error(f"加载时发生错误: {e}")
+
+    if delete_clicked:
+        try:
+            store.delete(dataset_id)
+            st.success("✅ 已删除数据集")
+            st.rerun()
+        except LocalStorageError as e:
+            st.error(f"删除失败: {e}")
+        except Exception as e:
+            st.error(f"删除时发生错误: {e}")
     
     return None
 

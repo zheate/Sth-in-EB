@@ -1,0 +1,21 @@
+{
+  "id": "94dcb1dd-a448-406d-b4ca-a58a5b6217ef",
+  "name": "450nm",
+  "category": "progress",
+  "created_at": "2025-12-03T14:46:34.788009",
+  "row_count": 2,
+  "columns": [
+    "料号",
+    "站别时间",
+    "生产订单",
+    "完成站别",
+    "是否工程分析",
+    "上一站",
+    "壳体号",
+    "当前站点原始",
+    "当前站点"
+  ],
+  "source_file": "am-c",
+  "note": null,
+  "extra": {}
+}

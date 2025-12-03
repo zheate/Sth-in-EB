@@ -13,13 +13,6 @@ if _pages_dir not in sys.path: sys.path.insert(0, _pages_dir)
 parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path: sys.path.insert(0, parent_dir)
 
-# 导入本地存储模块
-from utils.local_storage import (
-    LocalDataStore, DataCategory, serialize_plot_sources, deserialize_plot_sources
-)
-from utils.storage_widgets import render_save_button, render_load_selector, render_receive_shared_data
-from utils.exceptions import LocalStorageError
-
 # 导入模块
 from data_fetch import (
     PLOT_ORDER, SANITIZED_PLOT_ORDER, SANITIZED_ORDER_LOOKUP, STATION_COLORS, DEFAULT_PALETTE,
@@ -95,104 +88,8 @@ def _set_analysis_mode(mode: str) -> None:
 
 def _render_storage_section(result_df: Optional[pd.DataFrame], extraction_state: Optional[Dict]) -> None:
     """渲染数据存储区域（保存和加载）"""
-    # 保存功能
-    if result_df is not None and not result_df.empty and extraction_state:
-        # 准备扩展数据（绘图数据源）
-        lvi_sources = st.session_state.get('lvi_plot_sources', {})
-        rth_sources = st.session_state.get('rth_plot_sources', {})
-        extra_data = None
-        if lvi_sources or rth_sources:
-            try:
-                extra_data = serialize_plot_sources(lvi_sources, rth_sources)
-            except Exception:
-                extra_data = None
-        
-        # 生成数据来源描述
-        folder_entries = extraction_state.get("folder_entries", [])
-        source_file = ", ".join(folder_entries[:3])
-        if len(folder_entries) > 3:
-            source_file += f" 等{len(folder_entries)}个"
-        
-        render_save_button(
-            df=result_df,
-            category=DataCategory.EXTRACTION,
-            extra_data=extra_data,
-            source_file=source_file,
-            key="extraction_save",
-            show_expander=True
-        )
-    
-    st.markdown("---")
-    
-    # 加载功能
-    with st.expander("📂 加载历史数据", expanded=False):
-        def _on_load_extraction(df, metadata, extra_data):
-            """加载数据后的回调函数"""
-            # 恢复 session_state
-            st.session_state[EXTRACTION_STATE_KEY] = {
-                "folder_entries": [metadata.source_file] if metadata.source_file else [],
-                "combined_frames": [df],
-                "error_messages": [],
-                "info_messages": [f"从历史数据加载: {metadata.name}"],
-                "result_df": df,
-                "current_points": metadata.extra.get("current_points", []),
-                "form_folder_input": metadata.source_file or "",
-                "form_selected_tests": metadata.extra.get("selected_tests", []),
-                "form_selected_measurements": metadata.extra.get("selected_measurements", []),
-                "form_current_input": metadata.extra.get("current_input", ""),
-                "form_mode": metadata.extra.get("form_mode", MODULE_MODE),
-            }
-            
-            # 恢复绘图数据源
-            if extra_data:
-                try:
-                    lvi_sources, rth_sources = deserialize_plot_sources(extra_data)
-                    st.session_state['lvi_plot_sources'] = lvi_sources
-                    st.session_state['rth_plot_sources'] = rth_sources
-                except Exception:
-                    st.session_state['lvi_plot_sources'] = {}
-                    st.session_state['rth_plot_sources'] = {}
-            else:
-                st.session_state['lvi_plot_sources'] = {}
-                st.session_state['rth_plot_sources'] = {}
-        
-        result = render_load_selector(
-            category=DataCategory.EXTRACTION,
-            key="extraction_load",
-            show_details=True,
-            on_load_callback=_on_load_extraction
-        )
-        
-        if result:
-            st.rerun()
-        
-        # 接收其他模块共享的数据
-        def _on_receive_shared(df, source_metadata, compatibility):
-            """接收共享数据后的回调函数"""
-            st.session_state[EXTRACTION_STATE_KEY] = {
-                "folder_entries": [f"共享自{source_metadata.category.value}"],
-                "combined_frames": [df],
-                "error_messages": [],
-                "info_messages": [f"从 {source_metadata.name} 接收数据"],
-                "result_df": df,
-                "current_points": [],
-                "form_folder_input": "",
-                "form_selected_tests": [],
-                "form_selected_measurements": [],
-                "form_current_input": "",
-                "form_mode": MODULE_MODE,
-            }
-            st.session_state['lvi_plot_sources'] = {}
-            st.session_state['rth_plot_sources'] = {}
-        
-        shared_result = render_receive_shared_data(
-            target_category=DataCategory.EXTRACTION,
-            key="extraction_receive",
-            on_receive_callback=_on_receive_shared
-        )
-        
-        if shared_result:
-            st.rerun()
+    # Sidebar storage features removed per request
+    return
 
 
 def render_sidebar(result_df: Optional[pd.DataFrame], extraction_state: Optional[Dict]) -> None:
@@ -207,22 +104,6 @@ def render_sidebar(result_df: Optional[pd.DataFrame], extraction_state: Optional
         for label, mode in buttons:
             if st.button(label, use_container_width=True):
                 _set_analysis_mode(mode)
-        
-        st.markdown("---")
-        if extraction_state and result_df is not None:
-            st.markdown("### 📌 当前状态")
-            state_mode = extraction_state.get("form_mode", MODULE_MODE)
-            label = "壳体" if state_mode == MODULE_MODE else "芯片"
-            c1, c2, c3 = st.columns(3)
-            c1.metric(f"{label}数", len(extraction_state.get("folder_entries", [])))
-            c2.metric("数据量", len(result_df))
-            if TEST_TYPE_COLUMN in result_df.columns:
-                c3.metric("站别数", result_df[TEST_TYPE_COLUMN].nunique())
-            st.markdown("---")
-        
-        # 数据保存/加载功能
-        st.markdown("### 💾 数据存储")
-        _render_storage_section(result_df, extraction_state)
 
 
 def render_input_form(extraction_mode: str) -> Tuple[bool, bool, str, List[str], List[str], str]:
@@ -405,7 +286,10 @@ def _render_metric_comparison_tabs(tab_entries: List[Tuple[str, List]], metric_c
     for tab, (test, series) in zip(tabs, tab_entries):
         with tab:
             chart = build_multi_shell_chart(series, metric_column, metric_label, test)
-            st.altair_chart(chart, theme="streamlit", use_container_width=True) if chart else st.info("无法生成对比图表")
+            if chart:
+                st.altair_chart(chart, theme="streamlit", use_container_width=True)
+            else:
+                st.info("无法生成对比图表")
 
 
 def render_single_analysis(extraction_state: Dict, lvi_plot_sources: Dict) -> None:
@@ -434,8 +318,11 @@ def render_single_analysis(extraction_state: Dict, lvi_plot_sources: Dict) -> No
     for tab, (test, df_full, df_sel, plot_df) in zip(tabs, available):
         with tab:
             chart = build_single_shell_dual_metric_chart(plot_df, df_sel, shell_id, test)
-            if chart: st.altair_chart(chart, theme="streamlit", use_container_width=True); plotted = True
-            else: st.info("无法生成趋势图表")
+            if chart:
+                st.altair_chart(chart, theme="streamlit", use_container_width=True)
+                plotted = True
+            else:
+                st.info("无法生成趋势图表")
     if not plotted: show_toast("未找到可绘制的 LVI 数据", icon="⚠️")
 
 
@@ -477,11 +364,13 @@ def render_multi_station_analysis(lvi_plot_sources: Dict, rth_plot_sources: Dict
                     tmp = df.assign(**{TEST_TYPE_COLUMN: test.replace("测试", ""), SHELL_COLUMN: sid})
                     all_data.append(tmp)
         
-        if rth_plot_sources:
+        if rth_plot_sources and isinstance(rth_plot_sources, dict):
             for i, df in enumerate(all_data):
                 sid, test = df[SHELL_COLUMN].iloc[0], df[TEST_TYPE_COLUMN].iloc[0]
-                rth = rth_plot_sources.get((sid, test + "测试")) or rth_plot_sources.get((sid, test))
-                if rth is not None and not rth.empty:
+                rth = rth_plot_sources.get((sid, test + "测试"))
+                if rth is None or (isinstance(rth, pd.DataFrame) and rth.empty):
+                    rth = rth_plot_sources.get((sid, test))
+                if rth is not None and isinstance(rth, pd.DataFrame) and not rth.empty:
                     rth_tmp = rth.assign(**{TEST_TYPE_COLUMN: test, SHELL_COLUMN: sid})
                     cols = [CURRENT_COLUMN, TEST_TYPE_COLUMN, SHELL_COLUMN] + [c for c in [LAMBDA_COLUMN, SHIFT_COLUMN] if c in rth_tmp.columns]
                     all_data[i] = pd.merge(df, rth_tmp[cols], on=[CURRENT_COLUMN, TEST_TYPE_COLUMN, SHELL_COLUMN], how="outer")
@@ -634,6 +523,7 @@ def _render_boxplot(data: pd.DataFrame, value_col: str, value_label: str, transf
 
     counts = data.groupby(TEST_TYPE_COLUMN).size()
     enough = counts[counts >= 2].index.tolist()
+    insufficient = counts[counts < 2].index.tolist()
     with_data = [s for s in enough if data[data[TEST_TYPE_COLUMN] == s][value_col].std() > 1e-10]
     no_var = [s for s in enough if s not in with_data]
 
@@ -689,6 +579,82 @@ def _render_boxplot_statistics(filtered: pd.DataFrame, value_col: str, stations:
         df["变化幅度(%)"] = df["变化幅度(%)"].apply(lambda x: f"{x:+.2f}%" if pd.notnull(x) else "N/A")
         df["P值"] = df["P值"].apply(lambda x: f"{x:.4e}" if pd.notnull(x) else "N/A")
         st.table(df)
+
+
+def _auto_update_zh_database(result_df: pd.DataFrame, folder_entries: List[str], extraction_mode: str) -> None:
+    """
+    自动更新 Zh's DataBase 中已存在的壳体数据
+    
+    当用户在 Data_fetch 中查询壳体时，如果该壳体已存在于 Zh's DataBase 中，
+    则自动更新其测试数据。
+    """
+    if result_df is None or result_df.empty:
+        return
+    
+    if extraction_mode != MODULE_MODE:
+        return  # 只处理模块模式
+    
+    try:
+        # 动态导入以避免循环依赖
+        from pages.Data_Manager import check_shell_in_database, update_shell_test_data
+        
+        updates = []
+        for shell_id in folder_entries:
+            shell_id = str(shell_id).strip()
+            if not shell_id:
+                continue
+            
+            # 检查壳体是否在数据库中
+            if not check_shell_in_database(shell_id):
+                continue
+            
+            # 获取该壳体的测试数据
+            shell_data = result_df[result_df[SHELL_COLUMN] == shell_id] if SHELL_COLUMN in result_df.columns else pd.DataFrame()
+            if shell_data.empty:
+                continue
+            
+            # 收集测试数据
+            test_data = {}
+            for col in shell_data.columns:
+                if col not in [SHELL_COLUMN, TEST_TYPE_COLUMN]:
+                    # 取最新的非空值
+                    values = shell_data[col].dropna()
+                    if not values.empty:
+                        test_data[col] = values.iloc[-1]
+            
+            # 获取最新站别
+            current_station = None
+            if TEST_TYPE_COLUMN in shell_data.columns:
+                stations = shell_data[TEST_TYPE_COLUMN].dropna()
+                if not stations.empty:
+                    current_station = str(stations.iloc[-1])
+            
+            if test_data:
+                updates.append({
+                    "shell_id": shell_id,
+                    "test_data": test_data,
+                    "current_station": current_station
+                })
+        
+        # 执行更新
+        if updates:
+            updated_count = 0
+            for update in updates:
+                if update_shell_test_data(
+                    update["shell_id"],
+                    update["test_data"],
+                    update.get("current_station"),
+                    source="data_fetch"
+                ):
+                    updated_count += 1
+            
+            if updated_count > 0:
+                st.toast(f"✅ 已自动更新 Zh's DataBase 中 {updated_count} 个壳体的测试数据", icon="🗄️")
+    
+    except ImportError:
+        pass  # Data_Manager 模块不可用时静默忽略
+    except Exception as e:
+        pass  # 更新失败时静默忽略，不影响主流程
 
 
 def main() -> None:
@@ -770,6 +736,9 @@ def main() -> None:
                 "form_folder_input": folder_input, "form_selected_tests": selected_tests,
                 "form_selected_measurements": selected_measurements, "form_current_input": current_input, "form_mode": extraction_mode,
             }
+            
+            # 自动更新 Zh's DataBase 中已存在的壳体数据
+            _auto_update_zh_database(result_df, folder_entries, extraction_mode)
     else:
         result_df, errors, infos = extraction_state["result_df"], extraction_state["error_messages"], extraction_state["info_messages"]
 

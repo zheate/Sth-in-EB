@@ -1,0 +1,85 @@
+{
+  "product_types": {
+    "9e7a28aa-bdc4-440e-a320-458c3d504e11": {
+      "id": "9e7a28aa-bdc4-440e-a320-458c3d504e11",
+      "name": "450nm",
+      "created_at": "2025-12-03T14:46:34.819011",
+      "updated_at": "2025-12-03T14:46:34.819011",
+      "source_file": "am-c",
+      "shell_count": 2,
+      "order_count": 1,
+      "attachments": [],
+      "threshold_config": null
+    },
+    "fe3426a2-e62b-4b63-ab03-29baa517797a": {
+      "id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
+      "name": "450-2",
+      "created_at": "2025-12-03T14:48:16.040324",
+      "updated_at": "2025-12-03T14:57:15.977179",
+      "source_file": "am-c",
+      "shell_count": 24,
+      "order_count": 5,
+      "attachments": [
+        "6a61a64a-ef89-496f-9cd4-6aa15e74eb40",
+        "5472d3f7-4a9f-4695-9f79-983bdf363449"
+      ],
+      "threshold_config": null
+    }
+  },
+  "attachments_data": {
+    "9d234275-2de4-45df-858c-a141802a2e3f": {
+      "id": "9d234275-2de4-45df-858c-a141802a2e3f",
+      "product_type_id": "bbdde084-973a-46a4-a3c5-b85b24ae1098",
+      "original_name": "CAPE2-202511002.xlsx",
+      "stored_name": "9d234275-2de4-45df-858c-a141802a2e3f.xlsx",
+      "file_type": "excel",
+      "size": 24187,
+      "uploaded_at": "2025-11-27T13:21:06.948511"
+    },
+    "c72047d2-500c-4742-aa38-d8c201f4d53c": {
+      "id": "c72047d2-500c-4742-aa38-d8c201f4d53c",
+      "product_type_id": "7961b2df-79a5-44df-aa71-d71a1b1cfad4",
+      "original_name": "基于10W单管芯片的20W蓝光LD评估.pdf",
+      "stored_name": "c72047d2-500c-4742-aa38-d8c201f4d53c.pdf",
+      "file_type": "pdf",
+      "size": 715328,
+      "uploaded_at": "2025-11-27T18:04:33.030013"
+    },
+    "e58930bd-1a2c-4d9a-9412-51f4054f5b27": {
+      "id": "e58930bd-1a2c-4d9a-9412-51f4054f5b27",
+      "product_type_id": "7961b2df-79a5-44df-aa71-d71a1b1cfad4",
+      "original_name": "EB-FCP-700-220-0915-10-527.xlsx",
+      "stored_name": "e58930bd-1a2c-4d9a-9412-51f4054f5b27.xlsx",
+      "file_type": "excel",
+      "size": 675116,
+      "uploaded_at": "2025-11-27T22:04:41.372417"
+    },
+    "1f4d67a5-ba0e-4c96-a65b-3eca4f79c9f8": {
+      "id": "1f4d67a5-ba0e-4c96-a65b-3eca4f79c9f8",
+      "product_type_id": "d7321ade-d05a-4806-9333-2306c381eb03",
+      "original_name": "40W 蓝光LD.xlsx",
+      "stored_name": "1f4d67a5-ba0e-4c96-a65b-3eca4f79c9f8.xlsx",
+      "file_type": "excel",
+      "size": 10674,
+      "uploaded_at": "2025-11-28T11:32:26.921836"
+    },
+    "6a61a64a-ef89-496f-9cd4-6aa15e74eb40": {
+      "id": "6a61a64a-ef89-496f-9cd4-6aa15e74eb40",
+      "product_type_id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
+      "original_name": "75W BOM.xlsx",
+      "stored_name": "6a61a64a-ef89-496f-9cd4-6aa15e74eb40.xlsx",
+      "file_type": "excel",
+      "size": 10377,
+      "uploaded_at": "2025-12-03T14:54:44.094453"
+    },
+    "5472d3f7-4a9f-4695-9f79-983bdf363449": {
+      "id": "5472d3f7-4a9f-4695-9f79-983bdf363449",
+      "product_type_id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
+      "original_name": "基于10W单管芯片的20W蓝光LD评估.pdf",
+      "stored_name": "5472d3f7-4a9f-4695-9f79-983bdf363449.pdf",
+      "file_type": "pdf",
+      "size": 715328,
+      "uploaded_at": "2025-12-03T14:57:15.977179"
+    }
+  }
+}

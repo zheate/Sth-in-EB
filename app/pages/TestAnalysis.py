@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import hashlib
 import io
 import re
@@ -17,6 +17,95 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from config import DEFAULT_DATA_FOLDER
+
+
+def _auto_update_zh_database_from_analysis(filtered_df: pd.DataFrame) -> None:
+    """
+    自动更新 Zh's DataBase 中已存在的壳体数据
+    
+    当用户在 TestAnalysis 中查询壳体时，如果该壳体已存在于 Zh's DataBase 中，
+    则自动更新其测试数据。
+    """
+    if filtered_df is None or filtered_df.empty:
+        return
+    
+    if "壳体号" not in filtered_df.columns:
+        return
+    
+    try:
+        # 动态导入以避免循环依赖
+        from pages.Data_Manager import check_shell_in_database, update_shell_test_data
+        
+        # 获取唯一壳体号
+        shell_ids = filtered_df["壳体号"].dropna().unique()
+        
+        updates = []
+        for shell_id in shell_ids:
+            shell_id = str(shell_id).strip()
+            if not shell_id:
+                continue
+            
+            # 检查壳体是否在数据库中
+            if not check_shell_in_database(shell_id):
+                continue
+            
+            # 获取该壳体的测试数据（取最新的一条）
+            shell_data = filtered_df[filtered_df["壳体号"] == shell_id]
+            if shell_data.empty:
+                continue
+            
+            # 按测试时间排序，取最新的
+            if "测试时间" in shell_data.columns:
+                shell_data = shell_data.sort_values("测试时间", ascending=False)
+            
+            latest_row = shell_data.iloc[0]
+            
+            # 收集测试数据
+            test_data = {}
+            for col in shell_data.columns:
+                if col not in ["壳体号", "测试时间", "测试日期", "原始测试类型", "标准测试站别"]:
+                    value = latest_row.get(col)
+                    if pd.notna(value):
+                        test_data[col] = value
+            
+            # 获取最新站别
+            current_station = None
+            if "标准测试站别" in shell_data.columns:
+                current_station = str(latest_row.get("标准测试站别", ""))
+            
+            # 获取测试时间
+            test_time = None
+            if "测试时间" in shell_data.columns and pd.notna(latest_row.get("测试时间")):
+                test_time = str(latest_row["测试时间"])
+            
+            if test_data:
+                updates.append({
+                    "shell_id": shell_id,
+                    "test_data": test_data,
+                    "current_station": current_station,
+                    "test_time": test_time
+                })
+        
+        # 执行更新
+        if updates:
+            updated_count = 0
+            for update in updates:
+                if update_shell_test_data(
+                    update["shell_id"],
+                    update["test_data"],
+                    update.get("current_station"),
+                    update.get("test_time"),
+                    source="test_analysis"
+                ):
+                    updated_count += 1
+            
+            if updated_count > 0:
+                st.toast(f"✅ 已自动更新 Zh's DataBase 中 {updated_count} 个壳体的测试数据", icon="🗄️")
+    
+    except ImportError:
+        pass  # Data_Manager 模块不可用时静默忽略
+    except Exception as e:
+        pass  # 更新失败时静默忽略，不影响主流程
 
 
 def resolve_input_path(path_str: str) -> Path:
@@ -592,6 +681,9 @@ with col_right:
 
 st.markdown("### 站别概览")
 render_overview_table(filtered_df)
+
+# 自动更新 Zh's DataBase 中已存在的壳体数据
+_auto_update_zh_database_from_analysis(filtered_df)
 
 
 

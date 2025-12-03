@@ -1,4 +1,4 @@
-
+﻿
 from pathlib import Path
 
 # ==================== 路径配置 ====================
@@ -31,8 +31,8 @@ WIP_REPORT_KEYWORDS = ["光耦WIP报表", "光耦wip报表"]
 # ==================== 应用配置 ====================
 
 # 应用标题
-APP_TITLE = "ZH’s 妙妙屋"
-APP_ICON = "🔬"
+APP_TITLE = "Zh's DataBase"
+APP_ICON = "📊"
 
 # 页面配置
 PAGE_LAYOUT = "wide"
