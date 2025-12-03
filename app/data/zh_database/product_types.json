@@ -45,6 +45,17 @@
       "order_count": 1,
       "attachments": [],
       "threshold_config": null
+    },
+    "45e5fd46-72b8-4bde-ac9a-db22d299cdd2": {
+      "id": "45e5fd46-72b8-4bde-ac9a-db22d299cdd2",
+      "name": "M28-80W-Blue",
+      "created_at": "2025-12-03T18:16:21.350808",
+      "updated_at": "2025-12-03T18:18:48.974125",
+      "source_file": null,
+      "shell_count": 3,
+      "order_count": 1,
+      "attachments": [],
+      "threshold_config": null
     }
   },
   "attachments_data": {

@@ -227,7 +227,7 @@ def init_session_state():
         
         # Layer 1: Production Order Selection
         "dm_selected_orders": [],
-        "dm_order_select_mode": "single",  # "single" or "multi"
+        "dm_order_select_mode": "all",  # "single", "multi" or "all"
         "dm_selected_time": None,
         
         # Layer 2: Shell Progress
@@ -275,17 +275,26 @@ def _apply_product_type_selection(
     st.session_state.dm_selected_product_type_name = None
 
     target = None
-    if primary_id:
-        if product_types:
-            for pt in product_types:
-                if pt.id == primary_id:
+    targets = []
+    if product_types is None:
+        service = get_product_type_service()
+        product_types = service.list_product_types()
+    
+    for sid in selected_ids:
+        for pt in product_types:
+            if pt.id == sid:
+                targets.append(pt)
+                if sid == primary_id:
                     target = pt
-                    break
-        if target is None:
-            service = get_product_type_service()
-            target = service.get_product_type(primary_id)
-        if target:
-            st.session_state.dm_selected_product_type_name = target.name
+                break
+    
+    if target:
+        st.session_state.dm_selected_product_type_name = target.name
+    
+    # 标记需要更新 multiselect（在下次渲染前应用）
+    if targets:
+        display_texts = [_build_product_type_display(pt) for pt in targets]
+        st.session_state._dm_pending_product_type_select = display_texts
 
     # Reset dependent state
     st.session_state.dm_selected_orders = []
@@ -343,32 +352,51 @@ def render_product_type_selector():
     col1, col2, col3 = st.columns([7, 1.2, 1.2], gap="small")
     
     with col1:
-        # 多选产品类型，首个作为当前主选
-        default_values = []
-        if st.session_state.get("dm_selected_product_type_ids"):
-            for opt in options:
-                if id_map[opt] in st.session_state.dm_selected_product_type_ids:
-                    default_values.append(opt)
-        elif st.session_state.dm_selected_product_type_id:
-            for opt in options:
-                if id_map[opt] == st.session_state.dm_selected_product_type_id:
-                    default_values.append(opt)
-                    break
-        if not default_values and options:
-            default_values = [options[0]]
-        # 确保默认值均在 options 中，避免 Streamlit 默认值校验报错
-        default_values = [d for d in default_values if d in options]
-        if not default_values:
+        # 应用 pending 状态（来自看板点击）
+        pending = st.session_state.pop("_dm_pending_product_type_select", None)
+        has_widget_value = "dm_product_type_select" in st.session_state
+        
+        if pending:
+            # 直接设置 widget 值，不使用 default
+            st.session_state.dm_product_type_select = pending
+            has_widget_value = True
+        
+        # 计算默认值（仅在 widget 首次渲染时使用）
+        default_values = None
+        if not has_widget_value:
             default_values = []
+            if st.session_state.get("dm_selected_product_type_ids"):
+                for opt in options:
+                    if id_map[opt] in st.session_state.dm_selected_product_type_ids:
+                        default_values.append(opt)
+            elif st.session_state.dm_selected_product_type_id:
+                for opt in options:
+                    if id_map[opt] == st.session_state.dm_selected_product_type_id:
+                        default_values.append(opt)
+                        break
+            if not default_values and options:
+                default_values = [options[0]]
+            # 确保默认值均在 options 中
+            default_values = [d for d in default_values if d in options]
 
-        selected_displays = st.multiselect(
-            "选择产品类型",
-            options=options,
-            default=default_values,
-            key="dm_product_type_select",
-            label_visibility="collapsed",
-            help="选择要查看的产品类型（可多选，首个为当前）"
-        )
+        # 根据是否有 widget 值决定是否传 default
+        if default_values is not None:
+            selected_displays = st.multiselect(
+                "选择产品类型",
+                options=options,
+                default=default_values,
+                key="dm_product_type_select",
+                label_visibility="collapsed",
+                help="选择要查看的产品类型（可多选，首个为当前）"
+            )
+        else:
+            selected_displays = st.multiselect(
+                "选择产品类型",
+                options=options,
+                key="dm_product_type_select",
+                label_visibility="collapsed",
+                help="选择要查看的产品类型（可多选，首个为当前）"
+            )
         
         if selected_displays:
             selected_ids = [id_map[d] for d in selected_displays]
@@ -454,38 +482,35 @@ def _render_product_type_board_column(
             return
 
         for item in items:
-            pt = product_type_map.get(item["id"])
-            shell_count = pt.shell_count if pt else item.get("shell_count", 0)
-            order_count = pt.order_count if pt else item.get("order_count", 0)
-            total_shells = item.get("total_shells") or 0
-            completed_shells = item.get("completed_shells") or 0
-            progress_ratio = (completed_shells / total_shells) if total_shells else 0.0
-            progress_ratio = min(max(progress_ratio, 0.0), 1.0)
-
-            with st.container(border=True):
-                head_col1, head_col2 = st.columns([3, 1])
-                with head_col1:
-                    attachment_flag = " 📎" if item.get("has_attachments") else ""
-                    st.markdown(f"**{item['name']}**{attachment_flag}")
-                    st.caption(f"{shell_count} 壳体 · {order_count} 订单")
-                with head_col2:
-                    if st.button("选中", key=f"dm_pt_board_select_{item['id']}", use_container_width=True):
-                        _apply_product_type_selection([item["id"]], list(product_type_map.values()))
-                        st.rerun()
-
-                if total_shells:
-                    st.progress(progress_ratio)
-                    st.caption(f"{completed_shells}/{total_shells} 完成")
-                else:
-                    st.caption("暂无进度数据")
-
-                created_at = item.get("created_at")
-                if created_at:
-                    st.caption(f"创建: {created_at.strftime('%Y-%m-%d')}")
+            attachment_flag = " 📎" if item.get("has_attachments") else ""
+            if st.button(
+                f"{item['name']}{attachment_flag}",
+                key=f"dm_pt_board_select_{item['id']}",
+                use_container_width=True
+            ):
+                _apply_product_type_selection([item["id"]], list(product_type_map.values()))
+                st.session_state.dm_focus_progress_tab = True
+                st.rerun()
 
 
 def render_product_type_kanban():
     """Render product type Kanban grouped by WIP/completed."""
+    # 添加样式让看板按钮文字靠左
+    st.markdown(
+        """
+        <style>
+        [data-testid="stExpander"] button[kind="secondary"] {
+            text-align: left !important;
+            justify-content: flex-start !important;
+        }
+        [data-testid="stExpander"] button[kind="secondary"] p {
+            text-align: left !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
     service = get_product_type_service()
     product_types = service.list_product_types()
     if not product_types:
@@ -509,12 +534,41 @@ def render_product_type_kanban():
     col_wip, col_done = st.columns(2)
     # 折叠区，避免类型很多时页面过长
     wip_expanded = len(wip_items) <= 6
-    done_expanded = len(done_items) <= 6
     with col_wip:
         exp_wip = st.expander(f"🛠 WIP ({len(wip_items)})", expanded=wip_expanded)
         _render_product_type_board_column(exp_wip, "🛠 WIP", wip_items, product_type_map, show_title=False)
+        # 手动添加产品
+        with exp_wip:
+            # 应用 pending 清空状态
+            if st.session_state.pop("_dm_clear_new_product_name", False):
+                st.session_state.dm_new_product_name = ""
+            
+            add_col1, add_col2 = st.columns([3, 1])
+            with add_col1:
+                new_product_name = st.text_input(
+                    "新产品名称",
+                    key="dm_new_product_name",
+                    placeholder="输入产品名称",
+                    label_visibility="collapsed"
+                )
+            with add_col2:
+                if st.button("➕ 添加", key="dm_add_product_btn", use_container_width=True):
+                    if new_product_name and new_product_name.strip():
+                        try:
+                            service.upsert_product_type(
+                                name=new_product_name.strip(),
+                                shells_df=None,
+                                production_orders=[]
+                            )
+                            st.session_state._dm_clear_new_product_name = True  # 标记清空
+                            st.toast(f"✅ 已添加: {new_product_name.strip()}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ 添加失败: {str(e)}")
+                    else:
+                        st.warning("请输入产品名称")
     with col_done:
-        exp_done = st.expander(f"✅ 已完成 ({len(done_items)})", expanded=done_expanded)
+        exp_done = st.expander(f"✅ 已完成 ({len(done_items)})", expanded=False)
         _render_product_type_board_column(exp_done, "✅ 已完成", done_items, product_type_map, show_title=False)
 
 
@@ -1197,7 +1251,7 @@ def render_test_data_fetch_ui():
             help="加载缓存后会按此电流点筛选；留空取最高电流点；a 表示全部"
         )
     
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    col1, col2, col3, col4 = st.columns([3, 1.5, 1.5, 1])
     
     with col1:
         st.caption(f"📋 已选择 {len(shell_ids)} 个壳体")
@@ -1212,10 +1266,10 @@ def render_test_data_fetch_ui():
             cache_time = cache_info.get("created_at", "")[:16].replace("T", " ")
             cache_rows = cache_info.get("row_count", 0)
             if st.button(
-                f"📂 加载缓存 ({cache_rows}条)",
+                f"📂 加载缓存",
                 key="dm_load_cache_btn",
                 use_container_width=True,
-                help=f"加载缓存后会按当前站别和电流点筛选\n缓存时间: {cache_time}"
+                help=f"缓存: {cache_rows}条 | {cache_time}\n加载后按当前站别和电流点筛选"
             ):
                 # 解析电流点
                 try:
@@ -1227,12 +1281,12 @@ def render_test_data_fetch_ui():
                     current_points = []
                 _load_cached_analysis_data(selected_stations, current_points)
         else:
-            st.caption("📭 无缓存数据")
+            st.button("📂 加载缓存", key="dm_load_cache_btn_disabled", use_container_width=True, disabled=True)
     
     with col3:
         # Fetch data button
         fetch_clicked = st.button(
-            "🔄 获取/更新数据",
+            "🔄 获取数据",
             key="dm_fetch_test_data_btn",
             use_container_width=True,
             type="primary",
@@ -1243,7 +1297,7 @@ def render_test_data_fetch_ui():
         # Clear data button
         if st.session_state.dm_analysis_df is not None:
             if st.button(
-                "🗑️ 清除数据",
+                "🗑️ 清除",
                 key="dm_clear_analysis_btn",
                 use_container_width=True,
                 help="清除当前分析数据"
@@ -1251,6 +1305,8 @@ def render_test_data_fetch_ui():
                 st.session_state.dm_analysis_df = None
                 st.session_state.dm_analysis_page = 0
                 st.rerun()
+        else:
+            st.button("🗑️ 清除", key="dm_clear_analysis_btn_disabled", use_container_width=True, disabled=True)
     
     # Handle fetch button click - 获取全部数据，保存到缓存，然后按当前筛选条件显示
     if fetch_clicked:
@@ -1954,7 +2010,7 @@ def main():
     render_sidebar()
     
     # 主标题
-    st.title("🗄️ Zh's DataBase")
+    st.title("🗄️ ZH's MiaoMiao🏠")
     # 渲染重命名对话框
     render_rename_dialog()
     
@@ -1994,9 +2050,24 @@ def main():
     with tab3:
         render_data_analysis_section()
 
-    # If focus flag set, attempt to scroll to progress section (best-effort)
+    # If focus flag set, switch to progress tab via JavaScript
     if focus_progress:
-        st.markdown("<script>window.location.hash = '#shell-progress';</script>", unsafe_allow_html=True)
+        from streamlit.components.v1 import html as st_html
+        import time
+        st_html(
+            f"""
+            <script>
+            // 等待 DOM 加载完成后点击第二个 tab - {time.time()}
+            setTimeout(function() {{
+                const tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+                if (tabs && tabs.length > 1) {{
+                    tabs[1].click();
+                }}
+            }}, 50);
+            </script>
+            """,
+            height=0
+        )
 
 
 if __name__ == "__main__":

@@ -769,21 +769,23 @@ def _render_save_section(filtered_df: pd.DataFrame):
             store = LocalDataStore()
             st.session_state["local_data_store"] = store
 
-        existing_datasets = store.list_datasets(category=DataCategory.PROGRESS)
-        if not existing_datasets:
-            st.info("暂无可更新的历史数据集")
+        # 从数据管理器获取产品类型列表
+        service = get_product_type_service()
+        product_types = service.list_product_types()
+        if not product_types:
+            st.info("暂无可更新的产品类型（请先在数据管理器中创建）")
             return
 
         option_map = {
-            f"{meta.name}（{meta.row_count}行 | {meta.created_at[:16]}）": meta for meta in existing_datasets
+            f"{pt.name}（{pt.shell_count}壳体 | {pt.order_count}订单）": pt for pt in product_types
         }
         selected_label = st.selectbox("选择要更新的数据集", list(option_map.keys()), key="progress_update_select")
-        update_clicked = st.button("🔄 更新到已有数据集", key="progress_update_btn", use_container_width=True, type="secondary")
+        update_clicked = st.button("🔄 更新到已有产品", key="progress_update_btn", use_container_width=True, type="secondary")
 
         if update_clicked:
-            target_meta = option_map.get(selected_label)
-            if not target_meta:
-                st.error("未找到选中的数据集")
+            target_pt = option_map.get(selected_label)
+            if not target_pt:
+                st.error("未找到选中的产品类型")
                 return
 
             shell_candidates = ["壳体号", "壳体编码", "壳体", "腔体号", "腔体编号", "Shell ID", "ShellID", "SN", "序列号"]
@@ -793,55 +795,22 @@ def _render_save_section(filtered_df: pd.DataFrame):
                 return
 
             try:
-                df_old, meta_old, extra_old = store.load(target_meta.id)
-            except Exception as e:
-                st.error(f"加载目标数据集失败: {e}")
-                return
-
-            shell_col_old = _pick_column(df_old, shell_candidates)
-            target_shell_col = shell_col_old or shell_col_new
-
-            # 归一化壳体列
-            df_new = filtered_df.rename(columns={shell_col_new: target_shell_col}) if shell_col_new != target_shell_col else filtered_df.copy()
-            df_new[target_shell_col] = df_new[target_shell_col].fillna("").astype(str).str.strip()
-            df_old[target_shell_col] = df_old[target_shell_col].fillna("").astype(str).str.strip()
-
-            # 对齐列，保留旧数据中未覆盖的壳体
-            all_columns = list({*df_old.columns, *df_new.columns})
-            df_old = df_old.reindex(columns=all_columns)
-            df_new = df_new.reindex(columns=all_columns)
-
-            new_shells = set(df_new[target_shell_col])
-            df_old_kept = df_old[~df_old[target_shell_col].isin(new_shells)]
-            combined = pd.concat([df_old_kept, df_new], ignore_index=True)
-
-            try:
-                store.delete(target_meta.id)
-                updated_id = store.save(
-                    df=combined,
-                    category=DataCategory.PROGRESS,
-                    name=target_meta.name,
-                    custom_filename=target_meta.name,
-                    note=target_meta.note,
-                    extra_data=extra_old,
-                    source_file=target_meta.source_file,
-                )
-                # 同步更新 Data Manager 中的产品类型数据
-                shells_df_combined = prepare_shells_dataframe_for_data_manager(combined)
-                orders_combined: List[str] = []
-                if "生产订单" in combined.columns:
-                    orders_combined = (
-                        combined["生产订单"].dropna().astype(str).str.strip().unique().tolist()
+                # 准备新的壳体数据
+                shells_df_new = prepare_shells_dataframe_for_data_manager(filtered_df)
+                orders_new: List[str] = []
+                if "生产订单" in filtered_df.columns:
+                    orders_new = (
+                        filtered_df["生产订单"].dropna().astype(str).str.strip().unique().tolist()
                     )
-                service = get_product_type_service()
+                
+                # 更新数据管理器中的产品类型（会合并壳体数据）
                 dm_product_type_id = service.upsert_product_type(
-                    name=target_meta.name,
-                    shells_df=shells_df_combined,
-                    production_orders=orders_combined,
-                    source_file=target_meta.source_file,
+                    name=target_pt.name,
+                    shells_df=shells_df_new,
+                    production_orders=orders_new,
                 )
-                st.toast(f"✅ 已更新数据集与 Data Manager：{target_meta.name}")
-                st.caption(f"新数据集ID: {updated_id[:8]}... | 产品类型ID: {dm_product_type_id[:8]}...")
+                st.toast(f"✅ 已更新产品类型：{target_pt.name}")
+                st.caption(f"产品类型ID: {dm_product_type_id[:8]}...")
             except Exception as e:
                 st.error(f"更新失败: {e}")
 
