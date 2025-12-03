@@ -212,6 +212,11 @@ class DataAnalysisService:
             # Merge duplicate rows
             result_df = merge_measurement_rows(result_df, columns=OUTPUT_COLUMNS)
             
+            # 电光效率列乘以100转换为百分比
+            eff_cols = [col for col in result_df.columns if "电光效率" in col]
+            for col in eff_cols:
+                result_df[col] = pd.to_numeric(result_df[col], errors="coerce") * 100
+            
             return result_df
             
         except Exception as e:
