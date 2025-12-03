@@ -797,20 +797,83 @@ def _render_save_section(filtered_df: pd.DataFrame):
             try:
                 # 准备新的壳体数据
                 shells_df_new = prepare_shells_dataframe_for_data_manager(filtered_df)
+                order_col_new = _pick_column(filtered_df, PRODUCTION_ORDER_CANDIDATES)
                 orders_new: List[str] = []
-                if "生产订单" in filtered_df.columns:
+                if order_col_new and order_col_new in filtered_df.columns:
                     orders_new = (
-                        filtered_df["生产订单"].dropna().astype(str).str.strip().unique().tolist()
+                        filtered_df[order_col_new].dropna().astype(str).str.strip().unique().tolist()
                     )
-                
-                # 更新数据管理器中的产品类型（会合并壳体数据）
+
+                # 自动合并已存数据，仅更新已存在的壳体，忽略新增壳体
+                combined_shells_df = shells_df_new
+                existing_shells_df = service.get_shells_dataframe(target_pt.id)
+                if existing_shells_df is not None and not existing_shells_df.empty:
+                    shell_col_existing = _pick_column(existing_shells_df, shell_candidates)
+                    merge_shell_col = shell_col_existing or shell_col_new
+
+                    if merge_shell_col:
+                        existing_norm = existing_shells_df.copy()
+                        new_norm = shells_df_new.copy()
+
+                        if shell_col_existing and shell_col_existing in existing_norm.columns:
+                            existing_norm[shell_col_existing] = (
+                                existing_norm[shell_col_existing].fillna("").astype(str).str.strip()
+                            )
+                            if shell_col_existing != merge_shell_col:
+                                existing_norm[merge_shell_col] = existing_norm[shell_col_existing]
+
+                        new_norm[shell_col_new] = new_norm[shell_col_new].fillna("").astype(str).str.strip()
+                        if shell_col_new != merge_shell_col:
+                            new_norm[merge_shell_col] = new_norm[shell_col_new]
+
+                        if merge_shell_col in existing_norm.columns and merge_shell_col in new_norm.columns:
+                            existing_idx = existing_norm.set_index(merge_shell_col)
+                            new_idx = new_norm.set_index(merge_shell_col)
+                            # 只更新交集，不添加新壳体
+                            existing_idx.update(new_idx)
+                            combined_shells_df = existing_idx.reset_index()
+                            combined_shells_df[merge_shell_col] = (
+                                combined_shells_df[merge_shell_col].fillna("").astype(str).str.strip()
+                            )
+                    else:
+                        combined_shells_df = existing_shells_df
+
+                order_col_combined = _pick_column(combined_shells_df, PRODUCTION_ORDER_CANDIDATES)
+                all_orders: List[str] = orders_new
+                if order_col_combined and order_col_combined in combined_shells_df.columns:
+                    all_orders = (
+                        combined_shells_df[order_col_combined]
+                        .dropna()
+                        .astype(str)
+                        .str.strip()
+                        .loc[lambda s: s != ""]
+                        .unique()
+                        .tolist()
+                    )
+
+                # 更新数据管理器中的产品类型（仅更新已存在的壳体状态）
                 dm_product_type_id = service.upsert_product_type(
                     name=target_pt.name,
-                    shells_df=shells_df_new,
-                    production_orders=orders_new,
+                    shells_df=combined_shells_df,
+                    production_orders=all_orders,
                 )
                 st.toast(f"✅ 已更新产品类型：{target_pt.name}")
                 st.caption(f"产品类型ID: {dm_product_type_id[:8]}...")
+
+                # 重置 Data Manager 缓存，加载保存的最新壳体报表
+                for key in [
+                    "dm_shells_df",
+                    "dm_shell_progress_list",
+                    "dm_shell_cache_key",
+                    "dm_gantt_data",
+                    "dm_analysis_df",
+                ]:
+                    st.session_state[key] = None
+                st.session_state["dm_thresholds"] = {}
+                st.session_state["dm_selected_product_type_id"] = dm_product_type_id
+                st.session_state["dm_selected_product_type_ids"] = [dm_product_type_id]
+                st.session_state["dm_selected_product_type_name"] = target_pt.name
+                st.session_state["dm_selected_orders"] = []
             except Exception as e:
                 st.error(f"更新失败: {e}")
 

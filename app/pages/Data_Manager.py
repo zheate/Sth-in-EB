@@ -65,6 +65,16 @@ def get_shell_progress_service():
     """获取 ShellProgressService 单例"""
     return ShellProgressService()
 
+
+def _ensure_service_has_method():
+    """确保服务有新方法，否则清除缓存"""
+    service = get_product_type_service()
+    if not hasattr(service, "set_product_type_completed"):
+        get_product_type_service.clear()
+
+
+_ensure_service_has_method()
+
 def get_data_analysis_service():
     """获取 DataAnalysisService 实例"""
     if "dm_data_analysis_service" not in st.session_state:
@@ -198,6 +208,46 @@ def update_shell_test_data(
         combined = combined.drop_duplicates(subset=key_cols, keep="last")
 
         note = f"auto_update:{source}" if source else "auto_update"
+
+        # 同步更新 Data Manager 中已存在的壳体进度（仅更新已存在壳体，不新增）
+        try:
+            pt_service = get_product_type_service()
+            shell_service = get_shell_progress_service()
+            shells_df = pt_service.get_shells_dataframe(shell_info["product_type_id"])
+            if shells_df is not None and not shells_df.empty:
+                shell_col = shell_service._find_column(shells_df, SHELL_ID_CANDIDATES)
+                station_col = shell_service._find_column(shells_df, ["当前站点", "当前站别", "站别", "Station"])
+
+                if shell_col:
+                    df_norm = shells_df.copy()
+                    df_norm[shell_col] = df_norm[shell_col].fillna("").astype(str).str.strip()
+                    mask = df_norm[shell_col] == normalized_shell_id
+                    if mask.any():
+                        if current_station is not None and station_col:
+                            normalized_station = shell_service._normalize_station_name(str(current_station).strip())
+                            df_norm.loc[mask, station_col] = normalized_station
+
+                        order_col = shell_service._find_column(df_norm, PRODUCTION_ORDER_CANDIDATES)
+                        orders = (
+                            df_norm[order_col]
+                            .dropna()
+                            .astype(str)
+                            .str.strip()
+                            .loc[lambda s: s != ""]
+                            .unique()
+                            .tolist()
+                            if order_col
+                            else []
+                        )
+
+                        pt_service.upsert_product_type(
+                            name=shell_info["product_type_name"],
+                            shells_df=df_norm,
+                            production_orders=orders,
+                        )
+        except Exception as exc_update:
+            logger.debug("Failed to sync shell progress for %s: %s", normalized_shell_id, exc_update)
+
         return bool(
             service.save_analysis_cache(
                 shell_info["product_type_id"],
@@ -327,6 +377,10 @@ def render_product_type_selector():
             text-overflow: unset !important;
             white-space: nowrap !important;
         }
+        /* 按钮文字不换行 */
+        button[kind="secondary"] p, button[kind="primary"] p {
+            white-space: nowrap !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -347,78 +401,79 @@ def render_product_type_selector():
         id_map[display_text] = pt.id
     selected_ids = st.session_state.get("dm_selected_product_type_ids", [])
     
-    # 标签单独占一行，避免下拉框标签高度拉高行距
-    st.markdown("选择产品类型")
-    col1, col2, col3 = st.columns([7, 1.2, 1.2], gap="small")
-    
-    with col1:
-        # 应用 pending 状态（来自看板点击）
-        pending = st.session_state.pop("_dm_pending_product_type_select", None)
-        has_widget_value = "dm_product_type_select" in st.session_state
-        
-        if pending:
-            # 直接设置 widget 值，不使用 default
-            st.session_state.dm_product_type_select = pending
-            has_widget_value = True
-        
-        # 计算默认值（仅在 widget 首次渲染时使用）
-        default_values = None
-        if not has_widget_value:
-            default_values = []
-            if st.session_state.get("dm_selected_product_type_ids"):
-                for opt in options:
-                    if id_map[opt] in st.session_state.dm_selected_product_type_ids:
-                        default_values.append(opt)
-            elif st.session_state.dm_selected_product_type_id:
-                for opt in options:
-                    if id_map[opt] == st.session_state.dm_selected_product_type_id:
-                        default_values.append(opt)
-                        break
-            if not default_values and options:
-                default_values = [options[0]]
-            # 确保默认值均在 options 中
-            default_values = [d for d in default_values if d in options]
+    # 当前选择（供按钮使用）- 优先使用已存储的 ID 列表
+    selected_ids_for_action = st.session_state.get("dm_selected_product_type_ids") or []
+    if not selected_ids_for_action and st.session_state.get("dm_selected_product_type_id"):
+        selected_ids_for_action = [st.session_state.dm_selected_product_type_id]
 
-        # 根据是否有 widget 值决定是否传 default
-        if default_values is not None:
-            selected_displays = st.multiselect(
-                "选择产品类型",
-                options=options,
-                default=default_values,
-                key="dm_product_type_select",
-                label_visibility="collapsed",
-                help="选择要查看的产品类型（可多选，首个为当前）"
-            )
-        else:
-            selected_displays = st.multiselect(
-                "选择产品类型",
-                options=options,
-                key="dm_product_type_select",
-                label_visibility="collapsed",
-                help="选择要查看的产品类型（可多选，首个为当前）"
-            )
-        
-        if selected_displays:
-            selected_ids = [id_map[d] for d in selected_displays]
-            primary_id = selected_ids[0]
-            if selected_ids != st.session_state.get("dm_selected_product_type_ids", []) or primary_id != st.session_state.dm_selected_product_type_id:
-                _apply_product_type_selection(selected_ids, product_types)
-                st.rerun()
-        else:
-            selected_ids = []
-            st.session_state.dm_selected_product_type_ids = []
-            st.session_state.dm_selected_product_type_id = None
-            st.session_state.dm_selected_product_type_name = None
-    
-    with col2:
-        # 重命名按钮
+    # 第一行：标题 + 按钮（水平对齐）
+    title_col, rename_col, complete_col, delete_col = st.columns([3, 2, 2, 2], gap="small", vertical_alignment="center")
+    with title_col:
+        st.markdown("**选择产品类型**")
+    with rename_col:
         if st.button("✏️ 重命名", key="dm_rename_btn", use_container_width=True):
             st.session_state.dm_show_rename_dialog = True
-    
-    with col3:
-        # 删除按钮
+    with complete_col:
+        if st.button("✅ 已完成", key="dm_complete_btn", use_container_width=True, help="将选中产品标记为已完成"):
+            _mark_selected_product_types_completed(selected_ids_for_action)
+    with delete_col:
         if st.button("🗑️ 删除", key="dm_delete_btn", use_container_width=True, help="直接删除已选产品类型及关联数据"):
-            _delete_selected_product_types(selected_ids)
+            _delete_selected_product_types(selected_ids_for_action)
+
+    # 准备 multiselect 默认值
+    pending = st.session_state.pop("_dm_pending_product_type_select", None)
+    has_widget_value = "dm_product_type_select" in st.session_state
+
+    if pending:
+        st.session_state.dm_product_type_select = pending
+        has_widget_value = True
+
+    default_values = None
+    if not has_widget_value:
+        default_values = []
+        if st.session_state.get("dm_selected_product_type_ids"):
+            for opt in options:
+                if id_map[opt] in st.session_state.dm_selected_product_type_ids:
+                    default_values.append(opt)
+        elif st.session_state.dm_selected_product_type_id:
+            for opt in options:
+                if id_map[opt] == st.session_state.dm_selected_product_type_id:
+                    default_values.append(opt)
+                    break
+        if not default_values and options:
+            default_values = [options[0]]
+        default_values = [d for d in default_values if d in options]
+
+    # 第二行：选择器（全宽）
+    if default_values is not None:
+        selected_displays = st.multiselect(
+            "选择产品类型",
+            options=options,
+            default=default_values,
+            key="dm_product_type_select",
+            label_visibility="collapsed",
+            help="选择要查看的产品类型（可多选，首个为当前）"
+        )
+    else:
+        selected_displays = st.multiselect(
+            "选择产品类型",
+            options=options,
+            key="dm_product_type_select",
+            label_visibility="collapsed",
+            help="选择要查看的产品类型（可多选，首个为当前）"
+        )
+
+    if selected_displays:
+        selected_ids = [id_map[d] for d in selected_displays]
+        primary_id = selected_ids[0]
+        if selected_ids != st.session_state.get("dm_selected_product_type_ids", []) or primary_id != st.session_state.dm_selected_product_type_id:
+            _apply_product_type_selection(selected_ids, product_types)
+            st.rerun()
+    else:
+        selected_ids = []
+        st.session_state.dm_selected_product_type_ids = []
+        st.session_state.dm_selected_product_type_id = None
+        st.session_state.dm_selected_product_type_name = None
     
     return st.session_state.dm_selected_product_type_id
 
@@ -450,7 +505,9 @@ def _load_product_type_board_data() -> List[Dict[str, Any]]:
                 completed_shells += 1
 
         total_shells = len(progress_list) or pt.shell_count
-        status = "completed" if total_shells and completed_shells == total_shells else "wip"
+        # 优先使用手动标记的 is_completed 字段（兼容旧数据）
+        is_completed = getattr(pt, "is_completed", False)
+        status = "completed" if is_completed else "wip"
 
         board_items.append({
             "id": pt.id,
@@ -462,6 +519,7 @@ def _load_product_type_board_data() -> List[Dict[str, Any]]:
             "has_attachments": pt.has_attachments,
             "created_at": pt.created_at,
             "status": status,
+            "is_completed": is_completed,
         })
 
     return board_items
@@ -564,9 +622,9 @@ def render_product_type_kanban():
                             st.toast(f"✅ 已添加: {new_product_name.strip()}")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ 添加失败: {str(e)}")
+                            st.toast(f"❌ 添加失败: {str(e)}", icon="❌")
                     else:
-                        st.warning("请输入产品名称")
+                        st.toast("请输入产品名称", icon="⚠️")
     with col_done:
         exp_done = st.expander(f"✅ 已完成 ({len(done_items)})", expanded=False)
         _render_product_type_board_column(exp_done, "✅ 已完成", done_items, product_type_map, show_title=False)
@@ -606,19 +664,59 @@ def render_rename_dialog():
                         if success:
                             st.session_state.dm_selected_product_type_name = new_name.strip()
                             st.session_state.dm_show_rename_dialog = False
-                            st.success(f"✅ 已重命名为: {new_name.strip()}")
+                            st.toast(f"✅ 已重命名为: {new_name.strip()}")
                             st.rerun()
                         else:
-                            st.error("❌ 重命名失败")
+                            st.toast("❌ 重命名失败", icon="❌")
                     except ValueError as e:
-                        st.error(f"❌ {str(e)}")
+                        st.toast(f"❌ {str(e)}", icon="❌")
                 else:
-                    st.error("❌ 名称不能为空")
+                    st.toast("❌ 名称不能为空", icon="❌")
         
         with col2:
             if st.button("❌ 取消", key="dm_rename_cancel", use_container_width=True):
                 st.session_state.dm_show_rename_dialog = False
                 st.rerun()
+
+
+def _mark_selected_product_types_completed(selected_ids: Optional[List[str]] = None) -> None:
+    """
+    将选中的产品类型标记为已完成。
+    """
+    service = get_product_type_service()
+    ids = selected_ids or st.session_state.get("dm_selected_product_type_ids") or []
+    if not ids and st.session_state.get("dm_selected_product_type_id"):
+        ids = [st.session_state.dm_selected_product_type_id]
+
+    logger.info(f"Marking product types as completed: {ids}")
+
+    if not ids:
+        st.warning("请选择要标记的产品类型")
+        return
+
+    errors: List[str] = []
+    completed = 0
+    for pid in ids:
+        pt = service.get_product_type(pid)
+        pt_name = pt.name if pt else pid
+        logger.info(f"Processing product type: {pid} ({pt_name})")
+        try:
+            result = service.set_product_type_completed(pid, True)
+            logger.info(f"set_product_type_completed result: {result}")
+            if result:
+                completed += 1
+            else:
+                errors.append(pt_name)
+        except Exception as e:
+            logger.error(f"Failed to mark product type {pid} as completed: {e}", exc_info=True)
+            errors.append(pt_name)
+
+    if completed:
+        st.session_state.dm_show_balloons = True
+        st.toast(f"✅ 已将 {completed} 个产品标记为已完成")
+        st.rerun()
+    elif errors:
+        st.toast(f"❌ 标记失败: {', '.join(errors)}", icon="❌")
 
 
 def _delete_selected_product_types(selected_ids: Optional[List[str]] = None) -> None:
@@ -658,9 +756,9 @@ def _delete_selected_product_types(selected_ids: Optional[List[str]] = None) -> 
     _apply_product_type_selection([], product_types)
     st.session_state.dm_show_delete_confirm = False
     if deleted:
-        st.success(f"✅ 已删除 {deleted} 个产品类型")
+        st.toast(f"✅ 已删除 {deleted} 个产品类型")
     if errors:
-        st.error(f"❌ 未能删除: {', '.join(errors)}")
+        st.toast(f"❌ 未能删除: {', '.join(errors)}", icon="❌")
     st.rerun()
 
 
@@ -721,7 +819,7 @@ def render_attachment_upload():
                             file_content=file_content,
                             original_name=uploaded_file.name,
                         )
-                    st.success(f"✅ 附件上传成功: {uploaded_file.name}")
+                    st.toast(f"✅ 附件上传成功: {uploaded_file.name}")
                     st.rerun()
                 except ValueError as e:
                     st.toast(f"上传失败: {str(e)}", icon="❌")
@@ -781,10 +879,10 @@ def render_attachment_preview():
                             att.id
                         )
                         if success:
-                            st.success(f"✅ 已删除: {att.original_name}")
+                            st.toast(f"✅ 已删除: {att.original_name}")
                             st.rerun()
                     except Exception as e:
-                        st.error(f"❌ 删除失败: {str(e)}")
+                        st.toast(f"❌ 删除失败: {str(e)}", icon="❌")
             
             # 预览内容
             if st.session_state.get(f"dm_preview_{att.id}", False):
@@ -800,7 +898,7 @@ def render_attachment_preview():
                             pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
                             st.markdown(pdf_display, unsafe_allow_html=True)
                         except Exception as e:
-                            st.error(f"PDF 预览失败: {str(e)}")
+                            st.toast(f"PDF 预览失败: {str(e)}", icon="❌")
                     elif att.file_type in ("excel", "xlsx", "xls"):
                         # 用系统默认程序打开 Excel 文件
                         try:
@@ -815,11 +913,11 @@ def render_attachment_preview():
                                 subprocess.run(["open", file_str])
                             else:  # Linux
                                 subprocess.run(["xdg-open", file_str])
-                            st.success(f"✅ 已用系统默认程序打开: {att.original_name}")
+                            st.toast(f"✅ 已用系统默认程序打开: {att.original_name}")
                             # 关闭预览状态
                             st.session_state[f"dm_preview_{att.id}"] = False
                         except Exception as e:
-                            st.error(f"打开文件失败: {str(e)}")
+                            st.toast(f"打开文件失败: {str(e)}", icon="❌")
 
 
 def render_production_order_selector():
@@ -1431,34 +1529,64 @@ def _fetch_test_data(shell_ids: List[str], selected_stations: List[str], current
         current_points: 电流点列表；None 表示全部，不为空列表表示按输入点过滤，空列表时取最高电流点
     """
     service = get_data_analysis_service()
+    total = len(shell_ids)
     
-    # Show loading indicator
-    with st.spinner("正在获取测试数据，请稍候..."):
-        try:
-            # 获取全部数据（不筛选站别和电流点）
-            df = service.fetch_test_data(shell_ids)
-
-            if df.empty:
-                st.session_state.dm_analysis_df = df
-                st.warning("⚠️ 未找到测试数据，请确认壳体号是否正确")
+    # 使用进度条显示提取进度
+    progress_bar = st.progress(0, text="正在获取测试数据...")
+    status_text = st.empty()
+    
+    try:
+        combined_frames: List[pd.DataFrame] = []
+        errors: List[str] = []
+        
+        for idx, shell_id in enumerate(shell_ids):
+            # 更新进度
+            progress = (idx + 1) / total
+            progress_bar.progress(progress, text=f"正在提取: {shell_id} ({idx + 1}/{total})")
+            
+            try:
+                # 单个壳体提取
+                shell_df = service.fetch_test_data([shell_id])
+                if shell_df is not None and not shell_df.empty:
+                    combined_frames.append(shell_df)
+            except Exception as e:
+                errors.append(f"{shell_id}: {str(e)[:50]}")
+        
+        progress_bar.progress(1.0, text="数据提取完成！")
+        
+        # 合并所有数据
+        if combined_frames:
+            df = pd.concat(combined_frames, ignore_index=True)
+        else:
+            df = pd.DataFrame()
+        
+        if df.empty:
+            st.session_state.dm_analysis_df = df
+            status_text.warning("⚠️ 未找到测试数据，请确认壳体号是否正确")
+        else:
+            # 保存全部数据到缓存
+            _auto_save_to_cache(df)
+            
+            # 然后按当前选择的站别和电流点筛选显示
+            display_df = df.copy()
+            if selected_stations and TEST_TYPE_COLUMN in display_df.columns:
+                display_df = display_df[display_df[TEST_TYPE_COLUMN].isin(selected_stations)]
+            display_df = _filter_by_current_points(display_df, current_points)
+            
+            st.session_state.dm_analysis_df = display_df
+            st.session_state.dm_analysis_page = 0
+            
+            if errors:
+                status_text.warning(f"获取 {len(df)} 条数据，{len(errors)} 个壳体失败")
             else:
-                # 保存全部数据到缓存
-                _auto_save_to_cache(df)
-                
-                # 然后按当前选择的站别和电流点筛选显示
-                display_df = df.copy()
-                if selected_stations and TEST_TYPE_COLUMN in display_df.columns:
-                    display_df = display_df[display_df[TEST_TYPE_COLUMN].isin(selected_stations)]
-                display_df = _filter_by_current_points(display_df, current_points)
-                
-                st.session_state.dm_analysis_df = display_df
-                st.session_state.dm_analysis_page = 0
+                status_text.empty()
                 st.toast(f"获取 {len(df)} 条数据，筛选后 {len(display_df)} 条", icon="✅")
-                st.rerun()
-                
-        except Exception as e:
-            st.error(f"❌ 获取数据失败: {str(e)}")
-            st.session_state.dm_analysis_df = pd.DataFrame()
+            st.rerun()
+            
+    except Exception as e:
+        progress_bar.empty()
+        st.error(f"❌ 获取数据失败: {str(e)}")
+        st.session_state.dm_analysis_df = pd.DataFrame()
 
 
 def _auto_save_to_cache(df: pd.DataFrame):
@@ -2006,11 +2134,15 @@ def main():
     """主函数"""
     init_session_state()
     
+    # 显示气球效果（标记完成后）
+    if st.session_state.pop("dm_show_balloons", False):
+        st.balloons()
+    
     # 渲染侧边栏
     render_sidebar()
     
     # 主标题
-    st.title("🗄️ ZH's MiaoMiao🏠")
+    st.title("🏠 :rainbow[ZH's MiaoMiao]")
     # 渲染重命名对话框
     render_rename_dialog()
     
@@ -2026,18 +2158,22 @@ def main():
         
         render_product_type_kanban()
         st.divider()
-        
-        # 产品类型选择器
-        render_product_type_selector()
-        
+
+        # 产品类型选择 + 生产订单并排
+        col_pt, col_order = st.columns(2, vertical_alignment="top")
+        with col_pt:
+            st.markdown("#### 选择产品类型")
+            render_product_type_selector()
+
+        with col_order:
+            if st.session_state.dm_selected_product_type_id:
+                st.markdown("#### 生产订单")
+                render_production_order_selector()
+            else:
+                st.info("请选择产品类型后再选择生产订单")
+
         if st.session_state.dm_selected_product_type_id:
             st.divider()
-
-            st.markdown("#### 生产订单")
-            render_production_order_selector()
-
-            st.divider()
-
             st.markdown("#### 📎 附件管理")
             render_attachment_upload()
             render_attachment_preview()

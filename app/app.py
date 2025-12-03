@@ -9,8 +9,7 @@ PAGES_ROOT = APP_ROOT / "pages"
 
 DATA_MANAGER_PAGE = {
     "path": PAGES_ROOT / "Data_Manager.py",
-    "title": "数据管理",
-    "icon": "🗄️",
+    "title": "🐶🐱🏠",
     "desc": "管理已保存的数据集，支持查看、删除和导出",
 }
 
@@ -75,7 +74,6 @@ def build_pages(enable_data: bool = True, enable_tools: bool = True) -> dict:
         st.Page(
             DATA_MANAGER_PAGE["path"],
             title=DATA_MANAGER_PAGE["title"],
-            icon=DATA_MANAGER_PAGE["icon"],
             default=True,
         )
     ]

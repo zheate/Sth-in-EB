@@ -41,6 +41,7 @@ class ProductType:
         order_count: 订单数量
         attachments: 附件 ID 列表
         threshold_config: 阈值配置
+        is_completed: 是否已完成（手动标记）
     """
     name: str
     id: str = field(default_factory=_generate_uuid)
@@ -51,6 +52,7 @@ class ProductType:
     order_count: int = 0
     attachments: List[str] = field(default_factory=list)
     threshold_config: Optional[Dict[str, Tuple[Optional[float], Optional[float]]]] = None
+    is_completed: bool = False
 
 
     def validate(self) -> List[str]:
@@ -94,6 +96,7 @@ class ProductType:
             "order_count": self.order_count,
             "attachments": self.attachments,
             "threshold_config": self.threshold_config,
+            "is_completed": self.is_completed,
         }
 
     @classmethod
@@ -109,6 +112,7 @@ class ProductType:
             order_count=data.get("order_count", 0),
             attachments=data.get("attachments", []),
             threshold_config=data.get("threshold_config"),
+            is_completed=data.get("is_completed", False),
         )
 
 
@@ -124,6 +128,7 @@ class ProductTypeSummary:
         order_count: 订单数量
         created_at: 创建时间
         has_attachments: 是否有附件
+        is_completed: 是否已完成（手动标记）
     """
     id: str
     name: str
@@ -131,6 +136,7 @@ class ProductTypeSummary:
     order_count: int = 0
     created_at: datetime = field(default_factory=_now)
     has_attachments: bool = False
+    is_completed: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -141,6 +147,7 @@ class ProductTypeSummary:
             "order_count": self.order_count,
             "created_at": self.created_at.isoformat(),
             "has_attachments": self.has_attachments,
+            "is_completed": self.is_completed,
         }
 
     @classmethod
@@ -153,6 +160,7 @@ class ProductTypeSummary:
             order_count=pt.order_count,
             created_at=pt.created_at,
             has_attachments=len(pt.attachments) > 0,
+            is_completed=pt.is_completed,
         )
 
 

@@ -97,8 +97,8 @@ class ProductTypeService:
             with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, ensure_ascii=False, indent=2)
             return True
-        except IOError as e:
-            logger.error(f"Failed to save metadata: {e}")
+        except Exception as e:
+            logger.error(f"Failed to save metadata: {e}", exc_info=True)
             return False
 
     # ========================================================================
@@ -330,6 +330,40 @@ class ProductTypeService:
             return False
         
         logger.info(f"Renamed product type {product_type_id} to: {new_name}")
+        return True
+
+    def set_product_type_completed(self, product_type_id: str, is_completed: bool) -> bool:
+        """
+        设置产品类型的完成状态。
+        
+        Args:
+            product_type_id: 产品类型 ID
+            is_completed: 是否已完成
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        metadata = self._load_metadata()
+        pt_data = metadata.get("product_types", {}).get(product_type_id)
+        
+        if pt_data is None:
+            logger.warning(f"Product type not found: {product_type_id}")
+            return False
+        
+        pt_data["is_completed"] = is_completed
+        pt_data["updated_at"] = datetime.now().isoformat()
+        
+        metadata["product_types"][product_type_id] = pt_data
+        
+        try:
+            if not self._save_metadata(metadata):
+                logger.error(f"Failed to save metadata for product type {product_type_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Exception saving metadata: {e}", exc_info=True)
+            return False
+        
+        logger.info(f"Set product type {product_type_id} completed: {is_completed}")
         return True
 
     def delete_product_type(self, product_type_id: str) -> bool:
