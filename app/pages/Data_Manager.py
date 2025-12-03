@@ -273,6 +273,8 @@ def init_session_state():
         "dm_selected_product_type_id": None,
         "dm_selected_product_type_name": None,
         "dm_show_rename_dialog": False,
+        "dm_show_delete_confirm": False,
+        "dm_delete_target_ids": [],
         "dm_attachment_preview_expanded": True,
         
         # Layer 1: Production Order Selection
@@ -377,9 +379,51 @@ def render_product_type_selector():
             text-overflow: unset !important;
             white-space: nowrap !important;
         }
+        /* 玻璃拟态按钮样式 */
+        button[kind="secondary"], button[kind="primary"] {
+            background: rgba(255, 255, 255, 0.15) !important;
+            backdrop-filter: blur(8px) !important;
+            -webkit-backdrop-filter: blur(8px) !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+            transition: all 0.3s ease !important;
+        }
+        button[kind="secondary"]:hover, button[kind="primary"]:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+            transform: translateY(-1px) !important;
+        }
+        button[kind="primary"] {
+            background: rgba(99, 102, 241, 0.7) !important;
+            border: 1px solid rgba(129, 140, 248, 0.5) !important;
+        }
+        button[kind="primary"]:hover {
+            background: rgba(99, 102, 241, 0.85) !important;
+        }
         /* 按钮文字不换行 */
         button[kind="secondary"] p, button[kind="primary"] p {
             white-space: nowrap !important;
+        }
+        /* 玻璃拟态容器样式 - 应用于带边框的容器 */
+        [data-testid="stVerticalBlockBorderWrapper"] > div {
+            background: rgba(255, 255, 255, 0.06) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            border-radius: 16px !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+        }
+        /* DataFrame 表格美化 */
+        [data-testid="stDataFrame"] {
+            border-radius: 12px !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stDataFrame"] > div {
+            border-radius: 12px !important;
         }
         </style>
         """,
@@ -417,8 +461,9 @@ def render_product_type_selector():
         if st.button("✅ 已完成", key="dm_complete_btn", use_container_width=True, help="将选中产品标记为已完成"):
             _mark_selected_product_types_completed(selected_ids_for_action)
     with delete_col:
-        if st.button("🗑️ 删除", key="dm_delete_btn", use_container_width=True, help="直接删除已选产品类型及关联数据"):
-            _delete_selected_product_types(selected_ids_for_action)
+        if st.button("🗑️ 删除", key="dm_delete_btn", use_container_width=True, help="删除已选产品类型及关联数据"):
+            st.session_state.dm_show_delete_confirm = True
+            st.session_state.dm_delete_target_ids = selected_ids_for_action
 
     # 准备 multiselect 默认值
     pending = st.session_state.pop("_dm_pending_product_type_select", None)
@@ -539,21 +584,28 @@ def _render_product_type_board_column(
             st.caption("暂无数据")
             return
 
-        for item in items:
-            attachment_flag = " 📎" if item.get("has_attachments") else ""
-            if st.button(
-                f"{item['name']}{attachment_flag}",
-                key=f"dm_pt_board_select_{item['id']}",
-                use_container_width=True
-            ):
-                _apply_product_type_selection([item["id"]], list(product_type_map.values()))
-                st.session_state.dm_focus_progress_tab = True
-                st.rerun()
+        # 超过6个产品时添加滚动容器
+        if len(items) > 6:
+            scroll_container = st.container(height=320)
+        else:
+            scroll_container = st.container()
+
+        with scroll_container:
+            for item in items:
+                attachment_flag = " 📎" if item.get("has_attachments") else ""
+                if st.button(
+                    f"{item['name']}{attachment_flag}",
+                    key=f"dm_pt_board_select_{item['id']}",
+                    use_container_width=True
+                ):
+                    _apply_product_type_selection([item["id"]], list(product_type_map.values()))
+                    st.session_state.dm_focus_progress_tab = True
+                    st.rerun()
 
 
 def render_product_type_kanban():
     """Render product type Kanban grouped by WIP/completed."""
-    # 添加样式让看板按钮文字靠左
+    # 添加样式让看板按钮文字靠左且加粗
     st.markdown(
         """
         <style>
@@ -563,6 +615,7 @@ def render_product_type_kanban():
         }
         [data-testid="stExpander"] button[kind="secondary"] p {
             text-align: left !important;
+            font-weight: 600 !important;
         }
         </style>
         """,
@@ -590,8 +643,8 @@ def render_product_type_kanban():
     done_items = [item for item in board_data if item.get("status") == "completed"]
 
     col_wip, col_done = st.columns(2)
-    # 折叠区，避免类型很多时页面过长
-    wip_expanded = len(wip_items) <= 6
+    # 折叠区，始终展开（有滚动容器控制高度）
+    wip_expanded = True
     with col_wip:
         exp_wip = st.expander(f"🛠 WIP ({len(wip_items)})", expanded=wip_expanded)
         _render_product_type_board_column(exp_wip, "🛠 WIP", wip_items, product_type_map, show_title=False)
@@ -676,6 +729,40 @@ def render_rename_dialog():
         with col2:
             if st.button("❌ 取消", key="dm_rename_cancel", use_container_width=True):
                 st.session_state.dm_show_rename_dialog = False
+                st.rerun()
+
+
+def render_delete_confirm_dialog():
+    """渲染删除确认对话框。"""
+    if not st.session_state.get("dm_show_delete_confirm"):
+        return
+
+    service = get_product_type_service()
+    target_ids = st.session_state.get("dm_delete_target_ids", [])
+
+    # 获取要删除的产品名称
+    names = []
+    for pid in target_ids:
+        pt = service.get_product_type(pid)
+        if pt:
+            names.append(pt.name)
+
+    if not names:
+        st.session_state.dm_show_delete_confirm = False
+        return
+
+    with st.container(border=True):
+        st.markdown("### ⚠️ 确认删除")
+        st.warning(f"确定要删除以下产品类型吗？此操作不可恢复！\n\n**{', '.join(names)}**")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ 确认删除", key="dm_delete_confirm_yes", use_container_width=True, type="primary"):
+                _delete_selected_product_types(target_ids)
+        with col2:
+            if st.button("❌ 取消", key="dm_delete_confirm_no", use_container_width=True):
+                st.session_state.dm_show_delete_confirm = False
+                st.session_state.dm_delete_target_ids = []
                 st.rerun()
 
 
@@ -1093,37 +1180,59 @@ def render_shell_progress_section():
     # 站别当前数量（参考进度追踪逻辑）
     counts_df = calculate_shell_station_counts(shell_progress_list)
     if not counts_df.empty:
+        # 玻璃拟态容器样式
+        st.markdown(
+            """
+            <style>
+            .glass-container {
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+                padding: 1rem;
+                margin: 0.5rem 0;
+            }
+            .stDataFrame, [data-testid="stDataFrame"] {
+                background: rgba(255, 255, 255, 0.05) !important;
+                border-radius: 12px !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         st.markdown("### 各站别当前数量")
-        table_col, chart_col = st.columns([2, 3])
+        with st.container(border=True):
+            table_col, chart_col = st.columns([2, 3])
 
-        with table_col:
-            counts_style = counts_df.style.format({"占比": "{:.1%}"})
-            # 高度自适应：每行36px + 表头60px，最小100px
-            table_height = max(100, min(320, 36 * len(counts_df) + 60))
-            st.dataframe(counts_style, use_container_width=True, height=table_height)
+            with table_col:
+                counts_style = counts_df.style.format({"占比": "{:.1%}"})
+                # 高度自适应：每行36px + 表头60px，最小100px
+                table_height = max(100, min(320, 36 * len(counts_df) + 60))
+                st.dataframe(counts_style, use_container_width=True, height=table_height)
 
-        with chart_col:
-            station_order = counts_df["站别"].tolist()
-            chart_height = max(160, min(360, 28 * len(counts_df)))
-            max_val = counts_df["数量"].max() if not counts_df.empty else 0
-            color_scale = alt.Scale(
-                scheme="blues",
-                domain=[0, max(max_val, 1)],
-            )
-
-            chart = (
-                alt.Chart(counts_df)
-                .mark_bar(cornerRadius=8, opacity=0.9, strokeWidth=1.5)
-                .encode(
-                    x=alt.X("数量:Q", title="完成数量", axis=alt.Axis(grid=True, gridOpacity=0.2, tickMinStep=1)),
-                    y=alt.Y("站别:N", sort=station_order, title="站别", axis=alt.Axis(labelFontSize=12, labelFontWeight="bold")),
-                    color=alt.Color("数量:Q", scale=color_scale, legend=None),
-                    stroke=alt.value("#ffffff33"),
-                    tooltip=["站别", "数量", alt.Tooltip("占比:Q", title="占比", format=".1%")],
+            with chart_col:
+                station_order = counts_df["站别"].tolist()
+                chart_height = max(160, min(360, 28 * len(counts_df)))
+                max_val = counts_df["数量"].max() if not counts_df.empty else 0
+                color_scale = alt.Scale(
+                    scheme="blues",
+                    domain=[0, max(max_val, 1)],
                 )
-            ).properties(height=chart_height).configure_view(strokeWidth=0).configure_axis(titleFontSize=13, titleFontWeight="bold")
 
-            st.altair_chart(chart, use_container_width=True, theme="streamlit")
+                chart = (
+                    alt.Chart(counts_df)
+                    .mark_bar(cornerRadius=12, opacity=0.85)
+                    .encode(
+                        x=alt.X("数量:Q", title="完成数量", axis=alt.Axis(grid=True, gridOpacity=0.15, tickMinStep=1)),
+                        y=alt.Y("站别:N", sort=station_order, title="站别", axis=alt.Axis(labelFontSize=12, labelFontWeight="bold")),
+                        color=alt.Color("数量:Q", scale=color_scale, legend=None),
+                        tooltip=["站别", "数量", alt.Tooltip("占比:Q", title="占比", format=".1%")],
+                    )
+                ).properties(height=chart_height).configure_view(strokeWidth=0).configure_axis(titleFontSize=13, titleFontWeight="bold")
+
+                st.altair_chart(chart, use_container_width=True, theme="streamlit")
 
     # 工程分析站别分布
     eng_counts_df = calculate_engineering_station_counts(shell_progress_list)
@@ -1131,36 +1240,37 @@ def render_shell_progress_section():
         st.markdown("---")
         st.markdown("### 🔍 工程分析站别分布")
 
-        table_col, pie_col = st.columns([2, 3])
+        with st.container(border=True):
+            table_col, pie_col = st.columns([2, 3])
 
-        with table_col:
-            st.caption(f"工程分析总数: {int(eng_counts_df['数量'].sum())} 个")
-            eng_style = eng_counts_df.style.format({"占比": "{:.1%}"})
-            st.dataframe(eng_style, use_container_width=True, hide_index=True)
+            with table_col:
+                st.caption(f"工程分析总数: {int(eng_counts_df['数量'].sum())} 个")
+                eng_style = eng_counts_df.style.format({"占比": "{:.1%}"})
+                st.dataframe(eng_style, use_container_width=True, hide_index=True)
 
-        with pie_col:
-            st.caption("工程分析站别占比")
-            # 悬停高亮效果
-            hover = alt.selection_point(fields=["站别"], on="pointerover", empty=False)
-            pie_chart = (
-                alt.Chart(eng_counts_df)
-                .mark_arc(innerRadius=20, outerRadius=70)
-                .encode(
-                    theta=alt.Theta("数量:Q", stack=True),
-                    color=alt.Color("站别:N", legend=alt.Legend(title="站别", orient="right"), scale=alt.Scale(scheme="category20")),
-                    tooltip=[
-                        alt.Tooltip("站别:N", title="站别"),
-                        alt.Tooltip("数量:Q", title="数量"),
-                        alt.Tooltip("占比:Q", title="占比", format=".1%"),
-                    ],
-                    opacity=alt.condition(hover, alt.value(1), alt.value(0.6)),
-                    stroke=alt.condition(hover, alt.value("#333"), alt.value(None)),
-                    strokeWidth=alt.condition(hover, alt.value(2), alt.value(0)),
+            with pie_col:
+                st.caption("工程分析站别占比")
+                # 悬停高亮效果
+                hover = alt.selection_point(fields=["站别"], on="pointerover", empty=False)
+                pie_chart = (
+                    alt.Chart(eng_counts_df)
+                    .mark_arc(innerRadius=25, outerRadius=75, opacity=0.85)
+                    .encode(
+                        theta=alt.Theta("数量:Q", stack=True),
+                        color=alt.Color("站别:N", legend=alt.Legend(title="站别", orient="right"), scale=alt.Scale(scheme="category20")),
+                        tooltip=[
+                            alt.Tooltip("站别:N", title="站别"),
+                            alt.Tooltip("数量:Q", title="数量"),
+                            alt.Tooltip("占比:Q", title="占比", format=".1%"),
+                        ],
+                        opacity=alt.condition(hover, alt.value(1), alt.value(0.7)),
+                        stroke=alt.condition(hover, alt.value("#333"), alt.value(None)),
+                        strokeWidth=alt.condition(hover, alt.value(2), alt.value(0)),
+                    )
+                    .add_params(hover)
+                    .properties(height=180)
                 )
-                .add_params(hover)
-                .properties(height=180)
-            )
-            st.altair_chart(pie_chart, use_container_width=True)
+                st.altair_chart(pie_chart, use_container_width=True)
     
     # Render shell list
     st.markdown("---")
@@ -1422,7 +1532,7 @@ def render_test_data_fetch_ui():
     if st.session_state.dm_analysis_df is not None:
         df = st.session_state.dm_analysis_df
         if df.empty:
-            st.info("📭 未找到测试数据")
+            st.toast("📭 未找到测试数据", icon="ℹ️")
 
 
 def _load_cached_analysis_data(selected_stations: List[str], current_points: Optional[List[float]]):
@@ -1562,7 +1672,8 @@ def _fetch_test_data(shell_ids: List[str], selected_stations: List[str], current
         
         if df.empty:
             st.session_state.dm_analysis_df = df
-            status_text.warning("⚠️ 未找到测试数据，请确认壳体号是否正确")
+            status_text.empty()
+            st.toast("⚠️ 未找到测试数据，请确认壳体号是否正确", icon="⚠️")
         else:
             # 保存全部数据到缓存
             _auto_save_to_cache(df)
@@ -1954,21 +2065,22 @@ def render_analysis_results_table():
         if display_cols:
             display_df = display_df[display_cols]
     
-    # 显示数据条数
-    st.caption(f"共 {len(display_df)} 条数据")
-    
     # Apply highlighting for out-of-threshold values (Task 10.4)
     styled_df = _apply_threshold_highlighting(display_df, st.session_state.dm_thresholds)
     
     # Display the table - 高度自适应数据行数
     # 每行约35px，表头约40px，最小150px，最大600px
     table_height = min(600, max(150, len(display_df) * 35 + 40))
-    st.dataframe(
-        styled_df,
-        use_container_width=True,
-        hide_index=True,
-        height=table_height
-    )
+    
+    # 玻璃拟态表格容器
+    with st.container(border=True):
+        st.caption(f"共 {len(display_df)} 条数据")
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            hide_index=True,
+            height=table_height
+        )
 
 
 def _render_filtering_statistics(stats: Dict[str, Any]):
@@ -2142,9 +2254,10 @@ def main():
     render_sidebar()
     
     # 主标题
-    st.title("🏠 :rainbow[ZH's MiaoMiao]")
-    # 渲染重命名对话框
+    st.title("🏠 :rainbow[ZH's MiaoMiao House]")
+    # 渲染对话框
     render_rename_dialog()
+    render_delete_confirm_dialog()
     
     # 主内容区域 - 使用 tabs 组织三层结构
     tab1, tab2, tab3 = st.tabs([
