@@ -315,7 +315,7 @@ def get_product_type_service() -> ProductTypeService:
     """Get ProductTypeService instance (refresh if missing new methods)."""
     service = st.session_state.get("progress_product_type_service")
     if service is None or not hasattr(service, "upsert_product_type"):
-        service = get_product_type_service()
+        service = ProductTypeService()
         st.session_state["progress_product_type_service"] = service
     return service
 

@@ -269,20 +269,6 @@ def _apply_product_type_selection(
     product_types: Optional[List[ProductTypeSummary]] = None,
 ) -> None:
     """Sync selection state and reset downstream caches."""
-    # Build display map for keeping selector widget in sync
-    display_map: Dict[str, str] = {}
-    source_list = product_types
-    if source_list is None:
-        try:
-            source_list = get_product_type_service().list_product_types()
-        except Exception:
-            source_list = []
-    for pt in source_list or []:
-        try:
-            display_map[pt.id] = _build_product_type_display(pt)
-        except Exception:
-            continue
-
     primary_id = selected_ids[0] if selected_ids else None
     st.session_state.dm_selected_product_type_ids = selected_ids
     st.session_state.dm_selected_product_type_id = primary_id
@@ -300,19 +286,6 @@ def _apply_product_type_selection(
             target = service.get_product_type(primary_id)
         if target:
             st.session_state.dm_selected_product_type_name = target.name
-            if primary_id and primary_id not in display_map:
-                try:
-                    display_map[primary_id] = _build_product_type_display(target)
-                except Exception:
-                    pass
-
-    # Sync multiselect widget value with current selection
-    if selected_ids:
-        st.session_state["dm_product_type_select"] = [
-            display_map.get(pid) for pid in selected_ids if display_map.get(pid)
-        ]
-    else:
-        st.session_state["dm_product_type_select"] = []
 
     # Reset dependent state
     st.session_state.dm_selected_orders = []
@@ -383,21 +356,15 @@ def render_product_type_selector():
                     break
         if not default_values and options:
             default_values = [options[0]]
-
-        # Ensure widget value follows external selections (e.g., Kanban “选中”)
-        if "dm_product_type_select" not in st.session_state or not st.session_state.dm_product_type_select:
-            st.session_state["dm_product_type_select"] = default_values
-        # 清理不存在于 options 的默认值，避免默认值不在候选列表报错
-        current_default = st.session_state.get("dm_product_type_select", default_values)
-        sanitized_default = [d for d in current_default if d in options]
-        if not sanitized_default and default_values:
-            sanitized_default = [d for d in default_values if d in options]
-        st.session_state["dm_product_type_select"] = sanitized_default
+        # 确保默认值均在 options 中，避免 Streamlit 默认值校验报错
+        default_values = [d for d in default_values if d in options]
+        if not default_values:
+            default_values = []
 
         selected_displays = st.multiselect(
             "选择产品类型",
             options=options,
-            default=sanitized_default,
+            default=default_values,
             key="dm_product_type_select",
             label_visibility="collapsed",
             help="选择要查看的产品类型（可多选，首个为当前）"
@@ -410,7 +377,6 @@ def render_product_type_selector():
                 _apply_product_type_selection(selected_ids, product_types)
                 st.rerun()
         else:
-            st.session_state["dm_product_type_select"] = []
             selected_ids = []
             st.session_state.dm_selected_product_type_ids = []
             st.session_state.dm_selected_product_type_id = None
@@ -728,7 +694,7 @@ def render_attachment_preview():
     # 默认折叠的附件列表
     with st.expander(f"📎 附件列表 ({len(attachments)})", expanded=st.session_state.dm_attachment_preview_expanded):
         for att in attachments:
-            col1, col2, col3, col4 = st.columns([6, 0.5, 0.5, 0.5])
+            col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
             
             with col1:
                 icon = "📄" if att.file_type == "pdf" else "📊"

@@ -1,0 +1,24 @@
+{
+  "cache_key": "50a09749_86c48d5592a82956",
+  "product_type_id": "50a09749-6932-4690-865a-363a4510ebb3",
+  "order_ids": [
+    "WO-MP-M20-HX-25110407"
+  ],
+  "stations": null,
+  "row_count": 1,
+  "columns": [
+    "壳体号",
+    "测试类型",
+    "电流(A)",
+    "功率(W)",
+    "电压(V)",
+    "电光效率(%)",
+    "波长lambda",
+    "波长shift",
+    "2A波长",
+    "冷波长",
+    "测试时间"
+  ],
+  "created_at": "2025-12-03T16:34:28.429482",
+  "note": "auto_update:data_fetch"
+}

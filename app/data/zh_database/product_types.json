@@ -1,28 +1,49 @@
 {
   "product_types": {
-    "9e7a28aa-bdc4-440e-a320-458c3d504e11": {
-      "id": "9e7a28aa-bdc4-440e-a320-458c3d504e11",
-      "name": "450nm",
-      "created_at": "2025-12-03T14:46:34.819011",
-      "updated_at": "2025-12-03T14:46:34.819011",
-      "source_file": "am-c",
-      "shell_count": 2,
+    "80c7c599-1c72-4550-9853-0f903d7eca34": {
+      "id": "80c7c599-1c72-4550-9853-0f903d7eca34",
+      "name": "先导稀材-60W-793-M14",
+      "created_at": "2025-12-03T16:22:14.012516",
+      "updated_at": "2025-12-03T16:22:14.012516",
+      "source_file": "光耦WIP报表_20251203_1764749809.xlsx",
+      "shell_count": 3,
       "order_count": 1,
       "attachments": [],
       "threshold_config": null
     },
-    "fe3426a2-e62b-4b63-ab03-29baa517797a": {
-      "id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
-      "name": "450-2",
-      "created_at": "2025-12-03T14:48:16.040324",
-      "updated_at": "2025-12-03T14:57:15.977179",
-      "source_file": "am-c",
-      "shell_count": 24,
+    "50a09749-6932-4690-865a-363a4510ebb3": {
+      "id": "50a09749-6932-4690-865a-363a4510ebb3",
+      "name": "330W-M20-AM-C",
+      "created_at": "2025-12-03T16:30:56.540017",
+      "updated_at": "2025-12-03T16:39:29.130929",
+      "source_file": "光耦WIP报表_20251203_1764750280.xlsx",
+      "shell_count": 126,
       "order_count": 5,
       "attachments": [
-        "6a61a64a-ef89-496f-9cd4-6aa15e74eb40",
-        "5472d3f7-4a9f-4695-9f79-983bdf363449"
+        "6a7a3576-5505-4961-bb7f-0036051808a8"
       ],
+      "threshold_config": null
+    },
+    "6a12e702-6f12-4f62-ada4-56e460fa177d": {
+      "id": "6a12e702-6f12-4f62-ada4-56e460fa177d",
+      "name": "先导稀材-100W-M12J",
+      "created_at": "2025-12-03T16:51:09.219809",
+      "updated_at": "2025-12-03T16:51:09.219809",
+      "source_file": "光耦WIP报表_20251203_1764751539.xlsx",
+      "shell_count": 3,
+      "order_count": 1,
+      "attachments": [],
+      "threshold_config": null
+    },
+    "2fe54fc7-bb7f-43bf-b512-651acfd8553d": {
+      "id": "2fe54fc7-bb7f-43bf-b512-651acfd8553d",
+      "name": "先导稀材-M18",
+      "created_at": "2025-12-03T16:57:22.148181",
+      "updated_at": "2025-12-03T16:57:22.148181",
+      "source_file": "光耦WIP报表_20251203_1764751912.xlsx",
+      "shell_count": 3,
+      "order_count": 1,
+      "attachments": [],
       "threshold_config": null
     }
   },
@@ -63,23 +84,32 @@
       "size": 10674,
       "uploaded_at": "2025-11-28T11:32:26.921836"
     },
-    "6a61a64a-ef89-496f-9cd4-6aa15e74eb40": {
-      "id": "6a61a64a-ef89-496f-9cd4-6aa15e74eb40",
-      "product_type_id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
-      "original_name": "75W BOM.xlsx",
-      "stored_name": "6a61a64a-ef89-496f-9cd4-6aa15e74eb40.xlsx",
-      "file_type": "excel",
-      "size": 10377,
-      "uploaded_at": "2025-12-03T14:54:44.094453"
-    },
-    "5472d3f7-4a9f-4695-9f79-983bdf363449": {
-      "id": "5472d3f7-4a9f-4695-9f79-983bdf363449",
+    "8feb512c-debb-4360-adb3-4b0963ea0691": {
+      "id": "8feb512c-debb-4360-adb3-4b0963ea0691",
       "product_type_id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
       "original_name": "基于10W单管芯片的20W蓝光LD评估.pdf",
-      "stored_name": "5472d3f7-4a9f-4695-9f79-983bdf363449.pdf",
+      "stored_name": "8feb512c-debb-4360-adb3-4b0963ea0691.pdf",
       "file_type": "pdf",
       "size": 715328,
-      "uploaded_at": "2025-12-03T14:57:15.977179"
+      "uploaded_at": "2025-12-03T15:39:47.766943"
+    },
+    "368df6df-b36f-4e54-8944-ae0bb4d4ed0b": {
+      "id": "368df6df-b36f-4e54-8944-ae0bb4d4ed0b",
+      "product_type_id": "fe3426a2-e62b-4b63-ab03-29baa517797a",
+      "original_name": "75W BOM.xlsx",
+      "stored_name": "368df6df-b36f-4e54-8944-ae0bb4d4ed0b.xlsx",
+      "file_type": "excel",
+      "size": 10377,
+      "uploaded_at": "2025-12-03T15:40:20.847605"
+    },
+    "6a7a3576-5505-4961-bb7f-0036051808a8": {
+      "id": "6a7a3576-5505-4961-bb7f-0036051808a8",
+      "product_type_id": "50a09749-6932-4690-865a-363a4510ebb3",
+      "original_name": "副本副本330W-920.xlsx",
+      "stored_name": "6a7a3576-5505-4961-bb7f-0036051808a8.xlsx",
+      "file_type": "excel",
+      "size": 31308,
+      "uploaded_at": "2025-12-03T16:39:29.130929"
     }
   }
 }

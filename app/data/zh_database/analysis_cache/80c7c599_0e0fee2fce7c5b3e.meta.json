@@ -1,0 +1,22 @@
+{
+  "cache_key": "80c7c599_0e0fee2fce7c5b3e",
+  "product_type_id": "80c7c599-1c72-4550-9853-0f903d7eca34",
+  "order_ids": [
+    "WO-MP-M14-HX-25110705"
+  ],
+  "stations": null,
+  "row_count": 24,
+  "columns": [
+    "壳体号",
+    "测试类型",
+    "电流(A)",
+    "功率(W)",
+    "电压(V)",
+    "电光效率(%)",
+    "波长lambda",
+    "波长shift",
+    "2A波长",
+    "冷波长"
+  ],
+  "created_at": "2025-12-03T16:22:26.932121"
+}

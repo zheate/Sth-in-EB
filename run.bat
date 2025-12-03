@@ -3,7 +3,7 @@ setlocal
 
 set "SCRIPT_DIR=%~dp0"
 set "APP_DIR=%SCRIPT_DIR%app"
-set "ENV_NAME=st"
+set "ENV_NAME=sth_eb"
 
 cls
 echo ========================================
