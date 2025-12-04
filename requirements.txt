@@ -8,3 +8,4 @@ openpyxl==3.1.5
 pyyaml==6.0.3
 pywebview==5.4
 streamlit-desktop-app==0.3.4
+bcrypt==4.2.0

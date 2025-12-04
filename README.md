@@ -127,6 +127,14 @@ streamlit run app/app.py
 
 直接运行 `dist/Sth-in-EB/Sth-in-EB.exe`（需先打包）
 
+## 🔐 登录认证
+
+- 应用启动后默认呈现登录界面，所有页面在通过验证前不可访问。
+- 账号信息保存在 `app/config/users.json` 中，仅包含用户名、角色与 bcrypt 哈希。
+- 使用 `python -m app.auth_cli add --username <name>` 可创建账号并交互式输入密码。
+- 只有系统用户名属于 `AUTH_ADMIN_OS_USERS`（默认在 `app/config/config.py` 中配置）时，才能执行 `add/password/delete`；可通过设置环境变量 `AUTH_ADMIN_OS_USERS` 临时扩展授权列表。
+- 更多账号管理说明请参见 [`docs/auth.md`](docs/auth.md)。
+
 ## 📦 打包为可执行文件
 
 ### 使用 PyInstaller 打包
