@@ -10,8 +10,10 @@ from pandas import read_excel, DataFrame, ExcelWriter
 
 assets_path = join(dirname(dirname(dirname(__file__))), 'assets')
 
-# JSON 配置文件路径
-CONFIG_JSON_PATH = join(assets_path, 'ld_config.json')
+# JSON 配置文件路径 (位于项目根目录下的 config 文件夹)
+# __file__ -> models -> application -> LD -> pages -> app -> Sth-in-EB
+PROJECT_ROOT = dirname(dirname(dirname(dirname(dirname(dirname(__file__))))))
+CONFIG_JSON_PATH = join(PROJECT_ROOT, 'config', 'ld_config.json')
 
 # 参数定义：(row, col, key, unit_col)
 PARAM_DEFINITIONS = [
@@ -86,8 +88,49 @@ def save_config_to_json(config: Dict[str, Any], json_path: Optional[str] = None)
         json_path: JSON 文件路径，默认使用 CONFIG_JSON_PATH
     """
     path = json_path or CONFIG_JSON_PATH
+    # 确保目录存在
+    dirname_path = dirname(path)
+    if not exists(dirname_path):
+        import os
+        os.makedirs(dirname_path, exist_ok=True)
+        
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+# 预设配置目录
+PRESETS_DIR = join(PROJECT_ROOT, 'config', 'presets')
+
+def list_presets() -> list[str]:
+    """列出所有可用的预设名称"""
+    if not exists(PRESETS_DIR):
+        return []
+    
+    presets = []
+    import os
+    for filename in os.listdir(PRESETS_DIR):
+        if filename.endswith('.json'):
+            presets.append(filename[:-5])  # 移除 .json 后缀
+    return sorted(presets)
+
+def load_preset(name: str) -> Dict[str, Any]:
+    """加载指定名称的预设"""
+    preset_path = join(PRESETS_DIR, f'{name}.json')
+    return load_config_from_json(preset_path)
+
+def save_preset(name: str, config: Dict[str, Any]) -> None:
+    """保存配置为预设"""
+    preset_path = join(PRESETS_DIR, f'{name}.json')
+    save_config_to_json(config, preset_path)
+
+def delete_preset(name: str) -> bool:
+    """删除指定名称的预设"""
+    preset_path = join(PRESETS_DIR, f'{name}.json')
+    if exists(preset_path):
+        import os
+        os.remove(preset_path)
+        return True
+    return False
 
 
 def load_config_from_excel(excel_path: Optional[str] = None) -> Dict[str, Any]:

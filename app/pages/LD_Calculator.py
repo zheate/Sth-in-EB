@@ -43,8 +43,13 @@ from application.models.parameters_conversion import (
     save_config_to_json,
     migrate_excel_to_json,
     parameters_convert,
+    parameters_convert,
     PARAM_DEFINITIONS,
     CONFIG_JSON_PATH,
+    list_presets,
+    load_preset,
+    save_preset,
+    delete_preset,
 )
 
 ROOT = LD_MODULE_PATH
@@ -130,23 +135,23 @@ DEFAULT_PARAM_LABELS = {
     'divergence_angle_f': ('快轴发散半角', '°'),
     'near_field_order_f': ('快轴近场阶数', ''),
     'far_field_order_f': ('快轴远场阶数', ''),
-    'number_f': ('单侧COS数量', ''),
-    'interval_f': ('芯片高度', 'mm'),
+    'number_f': ('⭐️ 单侧COS数量', ''),
+    'interval_f': ('⭐️ 芯片高度', 'mm'),
     'astigmatism': ('像散', 'um'),
-    'waist_s': ('慢轴束腰半径', 'um'),
+    'waist_s': ('⭐️ 半条宽', 'um'),
     'divergence_angle_s': ('慢轴发散半角', '°'),
     'near_field_order_s': ('慢轴近场阶数', ''),
     'far_field_order_s': ('慢轴远场阶数', ''),
     'number_s': ('慢轴堆叠数量', ''),
     'interval_s': ('慢轴堆叠间隔', 'mm'),
-    'z_spatial_beam_combining_f': ('台阶间距', 'mm'),
-    'collimation_lens_effective_focal_length_f': ('快轴准直镜焦距', 'mm'),
-    'collimation_lens_effective_focal_length_s': ('慢轴准直镜焦距', 'mm'),
-    'z_mirror_and_chip': ('反射镜距芯片距离', 'mm'),
+    'z_spatial_beam_combining_f': ('⭐️ 台阶间距', 'mm'),
+    'collimation_lens_effective_focal_length_f': ('⭐️ FAC焦距', 'mm'),
+    'collimation_lens_effective_focal_length_s': ('⭐️ SAC焦距', 'mm'),
+    'z_mirror_and_chip': ('小反到芯片距离', 'mm'),
     'z_polarized_beam_combining': ('偏振合束光程差', 'mm'),
     'z_spatial_beam_combining_s': ('慢轴空间合束光程差', 'mm'),
-    'coupling_lens_effective_focal_length_f': ('快轴耦合镜焦距', 'mm'),
-    'coupling_lens_effective_focal_length_s': ('慢轴耦合镜焦距', 'mm'),
+    'coupling_lens_effective_focal_length_f': ('⭐️ 快轴耦合镜焦距', 'mm'),
+    'coupling_lens_effective_focal_length_s': ('⭐️ 慢轴耦合镜焦距', 'mm'),
     'z_coupling_lens_f_and_mirror': ('快轴耦合镜距第一反射镜', 'mm'),
     'fiber_core_diameter': ('光纤纤芯直径', 'um'),
     'fiber_cladding_diameter': ('光纤包层直径', 'um'),
@@ -162,33 +167,31 @@ PARAM_LABELS = load_param_labels_from_excel() or DEFAULT_PARAM_LABELS
 # 参数分组（按功能模块分组）
 PARAM_GROUPS = {
     '光源配置': [
-        'wavelength', 'waist_f', 'divergence_angle_f', 'near_field_order_f',
-        'far_field_order_f', 'number_f', 'interval_f',
-        'waist_s', 'divergence_angle_s', 'near_field_order_s', 'far_field_order_s',
-        'number_s', 'interval_s', 'z_spatial_beam_combining_f', 'z_polarized_beam_combining'
+        'wavelength', 'waist_f', 'divergence_angle_f', 'near_field_order_f', 'far_field_order_f',
+        'divergence_angle_s', 'near_field_order_s', 'far_field_order_s', 'number_s', 'interval_s',
+        'number_f', 'waist_s', 'interval_f', 'z_spatial_beam_combining_f', 'z_polarized_beam_combining'
     ],
-    'FAC配置': [
-        'collimation_lens_effective_focal_length_f'
+    '准直配置': [
+        'collimation_lens_effective_focal_length_f',  # FAC
+        'collimation_lens_effective_focal_length_s',  # SAC
+        'z_mirror_and_chip'  # 小反
     ],
-    'SAC配置': [
-        'collimation_lens_effective_focal_length_s'
-    ],
-    '小反配置': [
-        'z_mirror_and_chip'
-    ],
-    'FOC配置': [
-        'coupling_lens_effective_focal_length_f', 'z_coupling_lens_f_and_mirror'
-    ],
-    'SOC配置': [
-        'coupling_lens_effective_focal_length_s'
+    '耦合配置': [
+        'coupling_lens_effective_focal_length_f',  # FOC
+        'coupling_lens_effective_focal_length_s',  # SOC
+        'z_coupling_lens_f_and_mirror'
     ],
     '光纤配置': [
         'fiber_core_diameter', 'fiber_cladding_diameter', 'fiber_na'
     ]
 }
 
-INTEGER_PARAMS = {'number_f', 'number_s'}
-HIGH_PRECISION_PARAMS = {'wavelength', 'index_fiber_core'}
+INTEGER_PARAMS = {'number_f', 'number_s', 'waist_s'}  # 整数参数
+HIGH_PRECISION_PARAMS = {'wavelength', 'index_fiber_core'}  # 4位小数
+CUSTOM_DECIMALS = {  # 自定义小数位数
+    'interval_f': 3,  # 芯片高度: 3位小数
+    'z_spatial_beam_combining_f': 2,  # 台阶间距: 2位小数
+}
 
 
 @dataclass(frozen=True)
@@ -231,7 +234,13 @@ def generate_parameter_fields() -> Dict[str, ParameterField]:
             continue
         label, unit = PARAM_LABELS[key]
         display_label = f'{label} ({unit})' if unit else label
-        decimals = 4 if key in HIGH_PRECISION_PARAMS else 3
+        # 确定小数位数：优先自定义 > 高精度(4位) > 默认(3位)
+        if key in CUSTOM_DECIMALS:
+            decimals = CUSTOM_DECIMALS[key]
+        elif key in HIGH_PRECISION_PARAMS:
+            decimals = 4
+        else:
+            decimals = 3
         is_integer = key in INTEGER_PARAMS
         fields[key] = ParameterField(key=key, label=display_label, unit=unit,
                                       decimals=decimals, is_integer=is_integer)
@@ -274,7 +283,7 @@ def render_parameter_inputs(config: Dict[str, Any]) -> Dict[str, float | int]:
     group_items = list(PARAM_GROUPS.items())
     
     # 第一行：光源配置（占满整行）
-    st.markdown('<div class="param-card">', unsafe_allow_html=True)
+    st.divider()
     st.markdown(f'<div class="param-card-header">💡 光源配置</div>', unsafe_allow_html=True)
     # 光源配置参数较多，使用5列布局
     light_params = PARAM_GROUPS['光源配置']
@@ -282,20 +291,18 @@ def render_parameter_inputs(config: Dict[str, Any]) -> Dict[str, float | int]:
     for idx, key in enumerate(light_params):
         with cols[idx % 5]:
             render_param_input(key)
-    st.markdown('</div>', unsafe_allow_html=True)
     
-    # 第二行：光学元件配置（6个小卡片）
-    optical_groups = ['FAC配置', 'SAC配置', '小反配置', 'FOC配置', 'SOC配置', '光纤配置']
-    icons = {'FAC配置': '🔷', 'SAC配置': '🔶', '小反配置': '🪞', 'FOC配置': '🎯', 'SOC配置': '⭕', '光纤配置': '🔌'}
+    # 第二行：光学元件配置（3个卡片：准直、耦合、光纤）
+    optical_groups = ['准直配置', '耦合配置', '光纤配置']
+    icons = {'准直配置': '💠', '耦合配置': '🎯', '光纤配置': '🔌'}
     
-    cols = st.columns(6, gap='small')
+    cols = st.columns(3, gap='medium')
     for col_idx, group_name in enumerate(optical_groups):
         with cols[col_idx]:
-            st.markdown(f'<div class="param-card-mini">', unsafe_allow_html=True)
+            st.divider()
             st.markdown(f'<div class="param-card-header-mini">{icons.get(group_name, "📦")} {group_name}</div>', unsafe_allow_html=True)
             for key in PARAM_GROUPS.get(group_name, []):
                 render_param_input(key)
-            st.markdown('</div>', unsafe_allow_html=True)
     
     return values
 
@@ -357,6 +364,8 @@ def plot_far_field_matplotlib(data: Tuple) -> plt.Figure:
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
     
     masked_far = mask_intensity(intensity_far)
+    # 远场图像上下颠倒
+    masked_far = np.flipud(masked_far)
     ax.pcolormesh(x_far, y_far, masked_far, cmap=cmap, shading='auto')
     
     # 远场 NA 圆
@@ -377,13 +386,14 @@ def plot_far_field_matplotlib(data: Tuple) -> plt.Figure:
 
 def plot_near_field_matplotlib(data: Tuple) -> plt.Figure:
     """使用 Matplotlib 绘制近场分布图"""
-    x_near = data[8] * 1000
-    y_near = data[9] * 1000
+    # 转换为 um
+    x_near = data[8] * 1e6
+    y_near = data[9] * 1e6
     intensity_near = data[10]
-    center_x_near = data[11] * 1000
-    center_y_near = data[12] * 1000
-    fiber_core_diameter = data[13] * 1000
-    fiber_cladding_diameter = data[14] * 1000
+    center_x_near = data[11] * 1e6
+    center_y_near = data[12] * 1e6
+    fiber_core_diameter = data[13] * 1e6
+    fiber_cladding_diameter = data[14] * 1e6
     
     # 创建自定义颜色映射
     colors = ['white', 'white', 'blue', 'cyan', 'green', 'yellow', 'orange', 'darkred']
@@ -409,8 +419,8 @@ def plot_near_field_matplotlib(data: Tuple) -> plt.Figure:
     radius_near = fiber_cladding_diameter / 1.8
     ax.set_xlim(-radius_near, radius_near)
     ax.set_ylim(-radius_near, radius_near)
-    ax.set_xlabel('x (mm)')
-    ax.set_ylabel('y (mm)')
+    ax.set_xlabel('x (um)')
+    ax.set_ylabel('y (um)')
     ax.set_title('Near Field')
     ax.set_aspect('equal')
     
@@ -767,8 +777,17 @@ def render_calculation_results(results: Dict):
                 f'**光斑尺寸(1/e²):** {round(e2_width_near_field[0] * 1e6, 2)}µm（慢轴） × '
                 f'{round(e2_width_near_field[1] * 1e6, 2)}µm（快轴）'
             )
-            st.markdown(f'**🎯 耦合效率:** <span style="color:green;font-size:1.2em;font-weight:bold">{round(coupling_efficiency * 100, 2)}%</span>', unsafe_allow_html=True)
-            st.markdown(f'**💡 包层光占比:** <span style="color:orange">{round(cladding_light_energy_ratio * 100, 2)}%</span>', unsafe_allow_html=True)
+            coupling_eff_val = round(coupling_efficiency * 100, 2)
+            eff_color = "red" if coupling_eff_val < 90 else "green"
+            st.markdown(f'**🎯 耦合效率:** <span style="color:{eff_color};font-size:1.2em;font-weight:bold">{coupling_eff_val}%</span>', unsafe_allow_html=True)
+            cladding_ratio_val = round(cladding_light_energy_ratio * 100, 2)
+            if cladding_ratio_val < 1:
+                cladding_color = "green"
+            elif cladding_ratio_val > 2:
+                cladding_color = "red"
+            else:
+                cladding_color = "orange"
+            st.markdown(f'**💡 包层光占比:** <span style="color:{cladding_color};font-size:1.2em;font-weight:bold">{cladding_ratio_val}%</span>', unsafe_allow_html=True)
             
             # 发散角信息（带光学元件标签）
             divergence_f = results.get('divergence_f') or []
@@ -792,10 +811,22 @@ def render_calculation_results(results: Dict):
             beam_cutting = results.get('beam_cutting') or []
             if beam_spreading or beam_cutting:
                 with st.expander('📐 光斑切割详情', expanded=False):
-                    if beam_spreading:
-                        st.markdown(f'**光斑展宽:** {", ".join(f"{round(v, 3)}" for v in beam_spreading)}')
-                    if beam_cutting:
-                        st.markdown(f'**切割能量占比:** {", ".join(f"{round(v*100, 2)}%" for v in beam_cutting)}')
+                    st.caption('说明：下表数据对应每一个子光束（如每个COS芯片或台阶）的计算结果。')
+                    # 构造数据表格
+                    data = []
+                    max_len = max(len(beam_spreading), len(beam_cutting))
+                    for i in range(max_len):
+                        spread = beam_spreading[i] if i < len(beam_spreading) else None
+                        cut = beam_cutting[i] if i < len(beam_cutting) else None
+                        row = {'序号': i + 1}
+                        if spread is not None:
+                            row['光斑展宽'] = f'{round(spread, 3)}'
+                        if cut is not None:
+                            row['切割能量占比'] = f'{round(cut * 100, 2)}%'
+                        data.append(row)
+                    
+                    if data:
+                        st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
 
     with right_main:
         st.markdown('##### 📈 NA数据')
@@ -815,13 +846,32 @@ def render_calculation_results(results: Dict):
             for value, ratio in zip(na, na_ratio):
                 if na_min <= value <= na_max:
                     na_data.append({
-                        'NA': f'{round(value, 3)}',
-                        '能量占比': f'{round(ratio * 100, 2)}%',
+                        'NA': value,  # Keep numeric for styling logic
+                        '能量占比': ratio, # Keep numeric for styling logic
                     })
             
             if na_data:
-                na_data.reverse()  # 倒序排列（从大到小）
-                st.dataframe(pd.DataFrame(na_data), hide_index=True, use_container_width=True, height=600)
+                df = pd.DataFrame(na_data)
+                df = df.iloc[::-1] # 倒序排列
+                
+                # 定义样式函数
+                def highlight_row(row):
+                    styles = [''] * len(row)
+                    # 检查是否满足条件：光纤NA约为0.22 且 当前行NA约为0.18
+                    if abs(fiber_na_value - 0.22) < 0.001 and abs(row['NA'] - 0.18) < 0.001:
+                        # NA列加粗
+                        styles[0] = 'font-weight: bold; color: black;'
+                        # 能量占比列：大于95%绿色加粗，否则红色加粗
+                        ratio_val = row['能量占比'] * 100
+                        color = 'green' if ratio_val > 95 else 'red'
+                        styles[1] = f'font-weight: bold; color: {color};'
+                    return styles
+
+                # 应用样式并格式化显示
+                styled_df = df.style.apply(highlight_row, axis=1)\
+                    .format({'NA': '{:.3f}', '能量占比': '{:.2%}'})
+                
+                st.dataframe(styled_df, hide_index=True, use_container_width=True, height=600)
         else:
             st.info('无NA数据')
 
@@ -842,34 +892,54 @@ def main():
             /* 超紧凑的数字输入框 */
             div[data-testid="stNumberInput"] {margin-bottom: -10px;}
             div[data-testid="stNumberInput"] label {font-size: 0.75rem; margin-bottom: 0px; line-height: 1.2;}
-            div[data-testid="stNumberInput"] input {min-height: 0px; padding: 2px 6px; height: 28px; font-size: 0.8rem;}
+            /* 关键参数标签使用金黄色 */
+            div[data-testid="stNumberInput"] label p {color: inherit;}
+            div[data-testid="stNumberInput"]:has(label:first-child) label:first-child {
+                color: #333;
+            }
+            div[data-testid="stNumberInput"] input {
+                min-height: 0px; 
+                padding: 2px 6px; 
+                height: 28px; 
+                font-size: 0.8rem;
+                background-color: white; /* 强制白色背景 */
+            }
             /* 隐藏数字输入框的加减按钮 */
             div[data-testid="stNumberInput"] button {display: none;}
             /* 调整 Tab 样式 */
             .stTabs [data-baseweb="tab-list"] {gap: 16px;}
             .stTabs [data-baseweb="tab"] {height: 40px; padding: 8px 12px;}
             /* 卡片样式 */
+            /* 卡片样式 - 毛玻璃效果 */
             .param-card {
-                background: linear-gradient(135deg, rgba(100,149,237,0.1) 0%, rgba(70,130,180,0.05) 100%);
-                border: 1px solid rgba(100,149,237,0.3);
-                border-radius: 10px;
-                padding: 12px;
-                margin-bottom: 10px;
+                background: rgba(255, 255, 255, 0.4);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.6);
+                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+                border-radius: 12px;
+                padding: 15px;
+                margin-bottom: 5px;
             }
+            /* 调整分割线间距 */
+            hr {margin-top: 5px !important; margin-bottom: 15px !important;}
             .param-card-header {
-                font-weight: 600;
-                font-size: 0.9rem;
-                color: #4a90d9;
-                margin-bottom: 8px;
-                border-bottom: 1px solid rgba(100,149,237,0.2);
-                padding-bottom: 6px;
+                font-weight: 700;
+                font-size: 0.95rem;
+                color: #2c3e50;
+                margin-bottom: 10px;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+                padding-bottom: 8px;
             }
             .param-card-mini {
-                background: linear-gradient(135deg, rgba(150,150,150,0.08) 0%, rgba(100,100,100,0.03) 100%);
-                border: 1px solid rgba(150,150,150,0.25);
-                border-radius: 8px;
-                padding: 8px;
-                margin-bottom: 8px;
+                background: rgba(255, 255, 255, 0.3);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.05);
+                border-radius: 10px;
+                padding: 10px;
+                margin-bottom: 10px;
             }
             .param-card-header-mini {
                 font-weight: 600;
@@ -880,6 +950,10 @@ def main():
             }
             /* 减少列间距 */
             div[data-testid="column"] {padding: 0 4px;}
+            /* 修复标题被遮挡 */
+            h1 {
+                padding-top: 2rem !important;
+            }
         </style>
     """, unsafe_allow_html=True)
     
@@ -890,10 +964,6 @@ def main():
 
     if config is None:
         return
-
-    # 参数配置区域（上方）
-    st.subheader('⚙️ 参数配置')
-    parameter_values = render_parameter_inputs(config)
 
     def do_calculation():
         """回调函数：在按钮点击时执行计算"""
@@ -911,6 +981,13 @@ def main():
             if key in updated_config:
                 updated_config[key]['value'] = value
         
+        # 保存配置到文件 (现在文件在 config 目录，不会触发 rerun)
+        try:
+            save_config_to_json(updated_config)
+        except Exception as e:
+            st.session_state['ld_calc_error'] = f"保存配置失败: {e}"
+            # 继续执行计算，不中断
+        
         # 执行计算
         try:
             results = run_full_calculation(updated_config)
@@ -920,8 +997,124 @@ def main():
             st.session_state['ld_calc_error'] = str(exc)
             st.session_state['ld_calc_success'] = False
 
-    # 计算按钮
-    col1, col2, col3 = st.columns([1, 1, 1])
+    # 参数配置区域（上方）
+    # 使用列布局放置标题和预设选择
+    header_col1, header_col2 = st.columns([1, 2], vertical_alignment="center")
+    with header_col1:
+        st.markdown('<h3 style="margin: 0; padding: 0;">⚙️ 参数配置</h3>', unsafe_allow_html=True)
+    
+    with header_col2:
+        # 使用四列布局：下拉菜单，搜索按钮，保存按钮，删除按钮
+        # 调整比例，给下拉菜单更多空间
+        sel_col, search_col, save_col, del_col = st.columns([4, 0.5, 0.5, 0.5], vertical_alignment="center")
+        
+        # 获取预设列表
+        presets = list_presets()
+        # 添加默认选项
+        preset_options = ['当前配置'] + presets
+        
+        def on_preset_change():
+            """预设改变时的回调"""
+            selected = st.session_state.get('preset_selector')
+            if selected and selected != '当前配置':
+                # 加载预设
+                preset_config = load_preset(selected)
+                # 更新 session_state 中的参数值
+                for key, param in preset_config.items():
+                    input_key = f'ld_param_{key}'
+                    st.session_state[input_key] = param['value']
+                # 更新当前配置对象 (用于本次渲染)
+                config.update(preset_config)
+                st.toast(f'已加载预设: {selected}')
+                # 自动执行计算
+                do_calculation()
+
+        with sel_col:
+            st.selectbox(
+                '选择预设', 
+                options=preset_options, 
+                key='preset_selector', 
+                label_visibility='collapsed',
+                on_change=on_preset_change
+            )
+        
+        with search_col:
+            with st.popover("🔍", use_container_width=True):
+                search_query = st.text_input("搜索预设", placeholder="输入名称...")
+                if search_query:
+                    filtered_presets = [p for p in presets if search_query.lower() in p.lower()]
+                    if filtered_presets:
+                        st.markdown("---")
+                        for p in filtered_presets:
+                            def select_preset_callback(preset_name):
+                                st.session_state['preset_selector'] = preset_name
+                                # 手动触发预设加载逻辑 (因为 on_change 可能不会在代码修改 session_state 时触发)
+                                preset_config = load_preset(preset_name)
+                                for key, param in preset_config.items():
+                                    input_key = f'ld_param_{key}'
+                                    st.session_state[input_key] = param['value']
+                                config.update(preset_config)
+                                st.toast(f'已加载预设: {preset_name}')
+                                # 设置标志位以便在重新运行后执行计算
+                                st.session_state['do_calc_next_run'] = True
+
+                            if st.button(p, key=f"search_res_{p}", use_container_width=True, on_click=select_preset_callback, args=(p,)):
+                                pass # Callback handles logic
+                    else:
+                        st.caption("未找到匹配的预设")
+                else:
+                    st.caption("请输入关键词进行搜索")
+
+        with save_col:
+            # 保存预设按钮 (仅图标)
+            with st.popover("💾", use_container_width=True):
+                preset_name = st.text_input("预设名称", placeholder="请按功率-波长-模块命名")
+                if st.button("确认保存", type="primary", use_container_width=True):
+                    if preset_name:
+                        # 收集当前参数
+                        current_values = {}
+                        for group_params in PARAM_GROUPS.values():
+                            for key in group_params:
+                                input_key = f'ld_param_{key}'
+                                if input_key in st.session_state:
+                                    current_values[key] = st.session_state[input_key]
+                        
+                        # 更新配置并保存
+                        preset_config = {k: dict(v) for k, v in config.items()}
+                        for key, value in current_values.items():
+                            if key in preset_config:
+                                preset_config[key]['value'] = value
+                        
+                        try:
+                            save_preset(preset_name, preset_config)
+                            st.toast(f"预设 '{preset_name}' 保存成功！")
+                            # 强制刷新以更新下拉列表
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"保存失败: {e}")
+                    else:
+                        st.warning("请输入预设名称")
+
+        # 仅当选择了非默认预设时显示删除按钮
+        selected_preset = st.session_state.get('preset_selector')
+        if selected_preset and selected_preset != '当前配置':
+            with del_col:
+                with st.popover("🗑️", use_container_width=True):
+                    st.markdown(f"确定删除预设 **{selected_preset}** 吗？")
+                    
+                    def delete_preset_callback(preset_name):
+                        if delete_preset(preset_name):
+                            st.toast(f"预设 '{preset_name}' 已删除")
+                            st.session_state['preset_selector'] = '当前配置'
+                        else:
+                            st.error("删除失败")
+                            
+                    st.button("确认删除", type="primary", use_container_width=True, on_click=delete_preset_callback, args=(selected_preset,))
+
+    parameter_values = render_parameter_inputs(config)
+
+    # 计算按钮 (居中且加宽)
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.button('🚀 开始计算', type='primary', use_container_width=True, on_click=do_calculation)
     
