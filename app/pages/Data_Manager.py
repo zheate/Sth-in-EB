@@ -451,9 +451,15 @@ def render_product_type_selector():
         selected_ids_for_action = [st.session_state.dm_selected_product_type_id]
 
     # 第一行：标题 + 按钮（水平对齐）
-    title_col, rename_col, complete_col, delete_col = st.columns([3, 2, 2, 2], gap="small", vertical_alignment="center")
+    title_col, select_all_col, rename_col, complete_col, delete_col = st.columns([2.5, 2.5, 3, 3, 2.5], gap="small", vertical_alignment="center")
     with title_col:
-        st.markdown("**选择产品类型**")
+        st.markdown("**选择产品**")
+    with select_all_col:
+        if st.button("☑️ 全选", key="dm_select_all_btn", use_container_width=True, help="选择所有产品类型"):
+            all_ids = [pt.id for pt in product_types]
+            if all_ids:
+                _apply_product_type_selection(all_ids, product_types)
+                st.rerun()
     with rename_col:
         if st.button("✏️ 重命名", key="dm_rename_btn", use_container_width=True):
             st.session_state.dm_show_rename_dialog = True
@@ -1012,7 +1018,21 @@ def render_production_order_selector():
         return
     
     service = get_product_type_service()
-    orders = service.get_production_orders(st.session_state.dm_selected_product_type_id)
+    
+    # 获取所有选中产品类型的订单（修复bug：之前只获取第一个产品类型的订单）
+    selected_pt_ids = st.session_state.get("dm_selected_product_type_ids", [])
+    if not selected_pt_ids:
+        selected_pt_ids = [st.session_state.dm_selected_product_type_id]
+    
+    # 合并所有选中产品类型的订单
+    orders = []
+    seen_order_ids = set()
+    for pt_id in selected_pt_ids:
+        pt_orders = service.get_production_orders(pt_id)
+        for order in pt_orders:
+            if order.id not in seen_order_ids:
+                orders.append(order)
+                seen_order_ids.add(order.id)
     
     if not orders:
         st.info("📭 该产品类型下暂无生产订单数据")
@@ -1042,6 +1062,7 @@ def render_production_order_selector():
         if new_mode != st.session_state.dm_order_select_mode:
             st.session_state.dm_order_select_mode = new_mode
             if new_mode == "all":
+                # 使用合并后的所有订单
                 st.session_state.dm_selected_orders = [order.id for order in orders]
             st.session_state.dm_shell_list_page = 0
             st.session_state.dm_gantt_page = 0
@@ -1141,27 +1162,49 @@ def render_shell_progress_section():
         st.info("📭 请先选择产品类型")
         return
     
-    # 使用缓存键来避免重复加载
-    cache_key = f"{st.session_state.dm_selected_product_type_id}_{','.join(sorted(st.session_state.dm_selected_orders))}"
+    # 获取所有选中的产品类型ID
+    selected_pt_ids = st.session_state.get("dm_selected_product_type_ids", [])
+    if not selected_pt_ids:
+        selected_pt_ids = [st.session_state.dm_selected_product_type_id]
+    
+    # 使用缓存键来避免重复加载（包含所有选中的产品类型）
+    cache_key = f"{','.join(sorted(selected_pt_ids))}_{','.join(sorted(st.session_state.dm_selected_orders))}"
     
     # 检查是否需要重新加载数据
     if (st.session_state.get("dm_shell_cache_key") != cache_key or 
         st.session_state.get("dm_shells_df") is None):
         
         shell_service = get_shell_progress_service()
-        shells_df = shell_service.get_shells_by_orders(
-            product_type_id=st.session_state.dm_selected_product_type_id,
-            order_ids=st.session_state.dm_selected_orders,
-        )
+        
+        # 合并所有选中产品类型的壳体数据
+        all_shells_dfs = []
+        all_progress_lists = []
+        
+        for pt_id in selected_pt_ids:
+            pt_shells_df = shell_service.get_shells_by_orders(
+                product_type_id=pt_id,
+                order_ids=st.session_state.dm_selected_orders,
+            )
+            if not pt_shells_df.empty:
+                all_shells_dfs.append(pt_shells_df)
+            
+            pt_progress_list = shell_service.get_shell_progress_list(
+                product_type_id=pt_id,
+                order_ids=st.session_state.dm_selected_orders,
+            )
+            all_progress_lists.extend(pt_progress_list)
+        
+        # 合并DataFrame
+        if all_shells_dfs:
+            shells_df = pd.concat(all_shells_dfs, ignore_index=True)
+        else:
+            shells_df = pd.DataFrame()
+        
+        shell_progress_list = all_progress_lists
         
         if shells_df.empty:
             st.warning("⚠️ 所选订单下没有壳体数据")
             return
-        
-        shell_progress_list = shell_service.get_shell_progress_list(
-            product_type_id=st.session_state.dm_selected_product_type_id,
-            order_ids=st.session_state.dm_selected_orders,
-        )
         
         # 缓存数据
         st.session_state.dm_shells_df = shells_df
@@ -1417,12 +1460,22 @@ def render_test_data_fetch_ui():
     Requirements: 5.1 - Add button to fetch test data for selected shells
                    Show loading indicator during fetch
     """
-    # Get shell IDs from selected orders
+    # 获取所有选中的产品类型ID
+    selected_pt_ids = st.session_state.get("dm_selected_product_type_ids", [])
+    if not selected_pt_ids:
+        selected_pt_ids = [st.session_state.dm_selected_product_type_id]
+    
+    # Get shell IDs from all selected product types
     shell_service = get_shell_progress_service()
-    shell_progress_list = shell_service.get_shell_progress_list(
-        product_type_id=st.session_state.dm_selected_product_type_id,
-        order_ids=st.session_state.dm_selected_orders,
-    )
+    all_progress_lists = []
+    for pt_id in selected_pt_ids:
+        pt_progress_list = shell_service.get_shell_progress_list(
+            product_type_id=pt_id,
+            order_ids=st.session_state.dm_selected_orders,
+        )
+        all_progress_lists.extend(pt_progress_list)
+    
+    shell_progress_list = all_progress_lists
     
     if not shell_progress_list:
         st.warning("⚠️ 所选订单下没有壳体数据")

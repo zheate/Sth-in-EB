@@ -39,24 +39,13 @@
       "id": "2fe54fc7-bb7f-43bf-b512-651acfd8553d",
       "name": "先导稀材-M18",
       "created_at": "2025-12-03T16:57:22.148181",
-      "updated_at": "2025-12-03T23:57:58.012115",
-      "source_file": "光耦WIP报表_20251203_1764751912.xlsx",
+      "updated_at": "2025-12-04T11:34:42.952914",
+      "source_file": null,
       "shell_count": 3,
       "order_count": 1,
       "attachments": [],
-      "threshold_config": null
-    },
-    "b4f58126-61de-47fe-9497-7dea35ade4e9": {
-      "id": "b4f58126-61de-47fe-9497-7dea35ade4e9",
-      "name": "11",
-      "created_at": "2025-12-04T00:03:11.461599",
-      "updated_at": "2025-12-04T00:03:17.577736",
-      "source_file": null,
-      "shell_count": 0,
-      "order_count": 0,
-      "attachments": [],
       "threshold_config": null,
-      "is_completed": true
+      "is_completed": false
     }
   },
   "attachments_data": {

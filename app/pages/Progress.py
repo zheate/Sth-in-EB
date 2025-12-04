@@ -762,32 +762,18 @@ def _render_save_section(filtered_df: pd.DataFrame):
             st.session_state["progress_overwrite_confirmed"] = False
             st.session_state["progress_overwrite_name"] = None
 
-    # 更新已有数据集（只更新当前壳体的站别/状态）
+    # 更新已有数据集（自动匹配壳体号到对应产品类型）
     with col_update:
-        store = st.session_state.get("local_data_store")
-        if store is None:
-            store = LocalDataStore()
-            st.session_state["local_data_store"] = store
-
-        # 从数据管理器获取产品类型列表
         service = get_product_type_service()
         product_types = service.list_product_types()
         if not product_types:
             st.info("暂无可更新的产品类型（请先在数据管理器中创建）")
             return
 
-        option_map = {
-            f"{pt.name}（{pt.shell_count}壳体 | {pt.order_count}订单）": pt for pt in product_types
-        }
-        selected_label = st.selectbox("选择要更新的数据集", list(option_map.keys()), key="progress_update_select")
+        st.caption("自动匹配壳体号到对应产品类型并更新")
         update_clicked = st.button("🔄 更新到已有产品", key="progress_update_btn", use_container_width=True, type="secondary")
 
         if update_clicked:
-            target_pt = option_map.get(selected_label)
-            if not target_pt:
-                st.error("未找到选中的产品类型")
-                return
-
             shell_candidates = ["壳体号", "壳体编码", "壳体", "腔体号", "腔体编号", "Shell ID", "ShellID", "SN", "序列号"]
             shell_col_new = _pick_column(filtered_df, shell_candidates)
             if not shell_col_new:
@@ -797,70 +783,89 @@ def _render_save_section(filtered_df: pd.DataFrame):
             try:
                 # 准备新的壳体数据
                 shells_df_new = prepare_shells_dataframe_for_data_manager(filtered_df)
-                order_col_new = _pick_column(filtered_df, PRODUCTION_ORDER_CANDIDATES)
-                orders_new: List[str] = []
-                if order_col_new and order_col_new in filtered_df.columns:
-                    orders_new = (
-                        filtered_df[order_col_new].dropna().astype(str).str.strip().unique().tolist()
+                shells_df_new[shell_col_new] = shells_df_new[shell_col_new].fillna("").astype(str).str.strip()
+                new_shell_ids = set(shells_df_new[shell_col_new].unique()) - {""}
+
+                # 构建壳体号到产品类型的映射
+                shell_to_pt: dict = {}  # shell_id -> (pt, shell_col, existing_df)
+                for pt in product_types:
+                    existing_df = service.get_shells_dataframe(pt.id)
+                    if existing_df is None or existing_df.empty:
+                        continue
+                    shell_col_existing = _pick_column(existing_df, shell_candidates)
+                    if not shell_col_existing:
+                        continue
+                    existing_df[shell_col_existing] = existing_df[shell_col_existing].fillna("").astype(str).str.strip()
+                    for sid in existing_df[shell_col_existing].unique():
+                        if sid and sid in new_shell_ids:
+                            shell_to_pt[sid] = (pt, shell_col_existing, existing_df)
+
+                if not shell_to_pt:
+                    st.warning("未找到匹配的壳体，请确认数据管理器中已存在这些壳体")
+                    return
+
+                # 按产品类型分组更新
+                pt_updates: dict = {}  # pt.id -> {pt, shell_col, existing_df, new_rows}
+                for sid, (pt, shell_col_existing, existing_df) in shell_to_pt.items():
+                    if pt.id not in pt_updates:
+                        pt_updates[pt.id] = {
+                            "pt": pt,
+                            "shell_col": shell_col_existing,
+                            "existing_df": existing_df,
+                            "new_shell_ids": set(),
+                        }
+                    pt_updates[pt.id]["new_shell_ids"].add(sid)
+
+                updated_count = 0
+                updated_pts = []
+                for pt_id, info in pt_updates.items():
+                    pt = info["pt"]
+                    shell_col_existing = info["shell_col"]
+                    existing_df = info["existing_df"]
+                    matched_shell_ids = info["new_shell_ids"]
+
+                    # 筛选出属于该产品类型的新数据
+                    new_subset = shells_df_new[shells_df_new[shell_col_new].isin(matched_shell_ids)].copy()
+                    if new_subset.empty:
+                        continue
+
+                    # 合并更新
+                    merge_col = shell_col_existing
+                    existing_norm = existing_df.copy()
+                    new_norm = new_subset.copy()
+                    if shell_col_new != merge_col:
+                        new_norm[merge_col] = new_norm[shell_col_new]
+
+                    existing_idx = existing_norm.set_index(merge_col)
+                    new_idx = new_norm.set_index(merge_col)
+                    existing_idx.update(new_idx)
+                    combined_df = existing_idx.reset_index()
+                    combined_df[merge_col] = combined_df[merge_col].fillna("").astype(str).str.strip()
+
+                    # 获取订单列表
+                    order_col = _pick_column(combined_df, PRODUCTION_ORDER_CANDIDATES)
+                    all_orders: List[str] = []
+                    if order_col and order_col in combined_df.columns:
+                        all_orders = (
+                            combined_df[order_col]
+                            .dropna()
+                            .astype(str)
+                            .str.strip()
+                            .loc[lambda s: s != ""]
+                            .unique()
+                            .tolist()
+                        )
+
+                    # 更新产品类型
+                    service.upsert_product_type(
+                        name=pt.name,
+                        shells_df=combined_df,
+                        production_orders=all_orders,
                     )
+                    updated_count += len(matched_shell_ids)
+                    updated_pts.append(pt.name)
 
-                # 自动合并已存数据，仅更新已存在的壳体，忽略新增壳体
-                combined_shells_df = shells_df_new
-                existing_shells_df = service.get_shells_dataframe(target_pt.id)
-                if existing_shells_df is not None and not existing_shells_df.empty:
-                    shell_col_existing = _pick_column(existing_shells_df, shell_candidates)
-                    merge_shell_col = shell_col_existing or shell_col_new
-
-                    if merge_shell_col:
-                        existing_norm = existing_shells_df.copy()
-                        new_norm = shells_df_new.copy()
-
-                        if shell_col_existing and shell_col_existing in existing_norm.columns:
-                            existing_norm[shell_col_existing] = (
-                                existing_norm[shell_col_existing].fillna("").astype(str).str.strip()
-                            )
-                            if shell_col_existing != merge_shell_col:
-                                existing_norm[merge_shell_col] = existing_norm[shell_col_existing]
-
-                        new_norm[shell_col_new] = new_norm[shell_col_new].fillna("").astype(str).str.strip()
-                        if shell_col_new != merge_shell_col:
-                            new_norm[merge_shell_col] = new_norm[shell_col_new]
-
-                        if merge_shell_col in existing_norm.columns and merge_shell_col in new_norm.columns:
-                            existing_idx = existing_norm.set_index(merge_shell_col)
-                            new_idx = new_norm.set_index(merge_shell_col)
-                            # 只更新交集，不添加新壳体
-                            existing_idx.update(new_idx)
-                            combined_shells_df = existing_idx.reset_index()
-                            combined_shells_df[merge_shell_col] = (
-                                combined_shells_df[merge_shell_col].fillna("").astype(str).str.strip()
-                            )
-                    else:
-                        combined_shells_df = existing_shells_df
-
-                order_col_combined = _pick_column(combined_shells_df, PRODUCTION_ORDER_CANDIDATES)
-                all_orders: List[str] = orders_new
-                if order_col_combined and order_col_combined in combined_shells_df.columns:
-                    all_orders = (
-                        combined_shells_df[order_col_combined]
-                        .dropna()
-                        .astype(str)
-                        .str.strip()
-                        .loc[lambda s: s != ""]
-                        .unique()
-                        .tolist()
-                    )
-
-                # 更新数据管理器中的产品类型（仅更新已存在的壳体状态）
-                dm_product_type_id = service.upsert_product_type(
-                    name=target_pt.name,
-                    shells_df=combined_shells_df,
-                    production_orders=all_orders,
-                )
-                st.toast(f"✅ 已更新产品类型：{target_pt.name}")
-                st.caption(f"产品类型ID: {dm_product_type_id[:8]}...")
-
-                # 重置 Data Manager 缓存，加载保存的最新壳体报表
+                # 重置 Data Manager 缓存
                 for key in [
                     "dm_shells_df",
                     "dm_shell_progress_list",
@@ -870,10 +875,11 @@ def _render_save_section(filtered_df: pd.DataFrame):
                 ]:
                     st.session_state[key] = None
                 st.session_state["dm_thresholds"] = {}
-                st.session_state["dm_selected_product_type_id"] = dm_product_type_id
-                st.session_state["dm_selected_product_type_ids"] = [dm_product_type_id]
-                st.session_state["dm_selected_product_type_name"] = target_pt.name
                 st.session_state["dm_selected_orders"] = []
+
+                st.toast(f"✅ 已更新 {updated_count} 个壳体，涉及 {len(updated_pts)} 个产品类型")
+                st.caption(f"更新的产品类型: {', '.join(updated_pts)}")
+
             except Exception as e:
                 st.error(f"更新失败: {e}")
 
