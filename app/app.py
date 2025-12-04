@@ -3,6 +3,7 @@
 import streamlit as st
 
 from config import APP_ICON, APP_TITLE
+from auth import enforce_login, render_logout_button
 
 APP_ROOT = Path(__file__).resolve().parent
 PAGES_ROOT = APP_ROOT / "pages"
@@ -96,6 +97,9 @@ def build_pages(enable_data: bool = True, enable_tools: bool = True) -> dict:
 
 
 def run_app(enable_data: bool = True, enable_tools: bool = True) -> None:
+    enforce_login()
+    with st.sidebar:
+        render_logout_button()
     pages = build_pages(enable_data=enable_data, enable_tools=enable_tools)
     page = st.navigation(pages, position="sidebar")
     page.run()

@@ -1,4 +1,5 @@
 ﻿
+import os
 from pathlib import Path
 
 # ==================== 路径配置 ====================
@@ -37,6 +38,14 @@ APP_ICON = "📊"
 # 页面配置
 PAGE_LAYOUT = "wide"
 SIDEBAR_STATE = "expanded"
+
+# 认证配置
+DEFAULT_AUTH_ADMIN_USERS = ["24561"]
+AUTH_ADMIN_OS_USERS = [
+    user.strip()
+    for user in os.environ.get("AUTH_ADMIN_OS_USERS", ",".join(DEFAULT_AUTH_ADMIN_USERS)).split(",")
+    if user.strip()
+]
 
 # ==================== 辅助函数 ====================
 def get_default_folder() -> Path:

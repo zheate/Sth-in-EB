@@ -1,0 +1,9 @@
+{
+  "users": [
+    {
+      "username": "qwe",
+      "password_hash": "$2b$12$UJal.pupcnn5lU21xFvVju1vU2IY08vfof/t0fwdSaDI35YBvKTFi",
+      "role": "admin"
+    }
+  ]
+}

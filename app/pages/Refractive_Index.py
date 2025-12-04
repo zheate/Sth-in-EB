@@ -3,6 +3,8 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
+from auth import enforce_login
+
 from utils.refractive_index_helper import (
     get_refractive_index,
     get_wavelength_span,
@@ -16,6 +18,8 @@ try:
     st.set_page_config(page_title="镜片折射率库", page_icon="🔍", layout="wide")
 except Exception:
     pass
+
+enforce_login()
 
 # 自定义样式
 st.markdown("""

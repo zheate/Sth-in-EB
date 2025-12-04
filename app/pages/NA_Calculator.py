@@ -4,6 +4,8 @@ import streamlit as st
 from pathlib import Path
 from typing import Any, Dict
 
+from auth import enforce_login
+
 from config import get_config_path
 from utils.refractive_index_helper import (
     get_refractive_index as lookup_refractive_index,
@@ -17,6 +19,8 @@ try:
     st.set_page_config(page_title="NA 计算器", page_icon="🔬", layout="wide")
 except:
     pass  # 如果已经配置过，忽略错误
+
+enforce_login()
 
 # 文件路径
 MATERIAL_FILE = get_config_path("material.json")
