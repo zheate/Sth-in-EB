@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -19,6 +20,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+from scipy.optimize import minimize
 
 from auth import enforce_login
 
@@ -1114,9 +1116,20 @@ def main():
     parameter_values = render_parameter_inputs(config)
 
     # 计算按钮 (居中且加宽)
+    # 计算按钮 (居中且加宽)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.button('🚀 开始计算', type='primary', use_container_width=True, on_click=do_calculation)
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.button('🚀 开始计算', type='primary', use_container_width=True, on_click=do_calculation)
+        with c2:
+            do_optimize = st.button('✨ 优化', use_container_width=True, help="自动寻找最佳的SAC、快轴耦合镜和慢轴耦合镜焦距")
+        
+        # 优化结果显示区域 (放在按钮下方，宽度与 col2 一致)
+        optimization_container = st.container()
+        
+        if do_optimize:
+            run_optimization(config, optimization_container)
     
     # 显示计算结果或错误
     if st.session_state.get('ld_calc_success') == False:
@@ -1134,6 +1147,95 @@ def main():
     results_container = st.container()
     with results_container:
         render_calculation_results(st.session_state.get('ld_calc_results'))
+
+
+def run_optimization(config: Dict[str, Any], container):
+    """运行优化算法"""
+    with container:
+        st.markdown("#### 🚀 正在进行优化计算...")
+        status_text = st.empty()
+        progress_bar = st.progress(0)
+    
+    # 初始参数
+    initial_params = [
+        config['collimation_lens_effective_focal_length_s']['value'],  # SAC
+        config['coupling_lens_effective_focal_length_f']['value'],     # FOC
+        config['coupling_lens_effective_focal_length_f']['value']      # SOC (Initial guess same as FOC if missing, or use actual SOC)
+    ]
+    # Correct SOC key if it was wrong in my thought process, checking file...
+    # Line 106: 'coupling_lens_effective_focal_length_s'
+    initial_params[2] = config['coupling_lens_effective_focal_length_s']['value']
+
+    # 优化目标函数已移动到 optimization_logic.py 以支持多进程
+
+    # 边界条件 (当前值 +/- 50%, 且 > 0)
+    bounds = [
+        (max(0.1, p * 0.5), p * 1.5) for p in initial_params
+    ]
+
+    status_text.text("正在优化中，请稍候... (这可能需要几分钟)")
+    
+    # 回调函数更新进度 (scipy minimize callback is limited, just simple spinner)
+    
+    # 使用差分进化算法 (Differential Evolution) 进行全局优化
+    # workers=-1 表示使用所有可用 CPU 核心进行并行计算
+    from scipy.optimize import differential_evolution
+    from optimization_logic import optimization_objective
+    
+    start_time = time.time()
+    
+    res = differential_evolution(
+        optimization_objective, 
+        bounds=bounds,
+        args=(config,),  # Pass config as argument
+        strategy='best1bin',
+        maxiter=20,
+        popsize=10,
+        tol=0.01,
+        workers=-1,
+        disp=True,
+        polish=True
+    )
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    st.toast(f"优化完成，耗时 {duration:.2f} 秒", icon="⏱️")
+    
+    progress_bar.progress(100)
+    status_text.empty()
+    
+    # 即使达到最大迭代次数，通常也找到了较好的解，因此也显示结果
+    if res.success or "Maximum number of iterations has been exceeded" in str(res.message):
+        if res.success:
+            st.success("优化成功！")
+        else:
+            st.warning("已达到最大计算次数，显示当前找到的最佳结果。")
+        
+        # 显示优化结果
+        opt_sac = res.x[0]
+        opt_foc = res.x[1]
+        opt_soc = res.x[2]
+        
+        st.markdown("### 🏆 优化结果")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("最佳 SAC 焦距", f"{opt_sac:.3f} mm", delta=f"{opt_sac - initial_params[0]:.3f} mm")
+        with col2:
+            st.metric("最佳 快轴耦合镜焦距", f"{opt_foc:.3f} mm", delta=f"{opt_foc - initial_params[1]:.3f} mm")
+        with col3:
+            st.metric("最佳 慢轴耦合镜焦距", f"{opt_soc:.3f} mm", delta=f"{opt_soc - initial_params[2]:.3f} mm")
+            
+        # 应用按钮
+        def apply_optimized():
+            st.session_state['ld_param_collimation_lens_effective_focal_length_s'] = float(opt_sac)
+            st.session_state['ld_param_coupling_lens_effective_focal_length_f'] = float(opt_foc)
+            st.session_state['ld_param_coupling_lens_effective_focal_length_s'] = float(opt_soc)
+            st.toast("已应用优化参数，请点击“开始计算”查看详细结果")
+            
+        st.button("应用优化参数", on_click=apply_optimized, type="primary")
+        
+    else:
+        st.error(f"优化失败: {res.message}")
 
 
 if __name__ == '__main__':
