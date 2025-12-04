@@ -62,9 +62,15 @@ TOOL_PAGES = [
     },
     {
         "path": PAGES_ROOT / "Refractive_Index.py",
-        "title": "Refractive_Index",
+        "title": "折射率查询",
         "icon": "🔍",
         "desc": "查询数千种光学材料折射率、可视化展示",
+    },
+    {
+        "path": PAGES_ROOT / "LD_Calculator.py",
+        "title": "LD光纤耦合",
+        "icon": "💡",
+        "desc": "光纤耦合模块设计、远近场分析、光线追迹",
     },
 ]
 

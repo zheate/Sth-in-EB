@@ -1,0 +1,118 @@
+{
+  "wavelength": {
+    "value": 0.45,
+    "unit": "um"
+  },
+  "waist_f": {
+    "value": 0.8,
+    "unit": "um"
+  },
+  "divergence_angle_f": {
+    "value": 26.5,
+    "unit": "°"
+  },
+  "near_field_order_f": {
+    "value": 1.0,
+    "unit": ""
+  },
+  "far_field_order_f": {
+    "value": 1.0,
+    "unit": ""
+  },
+  "number_f": {
+    "value": 14,
+    "unit": ""
+  },
+  "interval_f": {
+    "value": 0.4,
+    "unit": "mm"
+  },
+  "astigmatism": {
+    "value": 0.0,
+    "unit": "um"
+  },
+  "waist_s": {
+    "value": 35.0,
+    "unit": "um"
+  },
+  "divergence_angle_s": {
+    "value": 5.0,
+    "unit": "°"
+  },
+  "near_field_order_s": {
+    "value": 5.0,
+    "unit": ""
+  },
+  "far_field_order_s": {
+    "value": 1.5,
+    "unit": ""
+  },
+  "number_s": {
+    "value": 1,
+    "unit": ""
+  },
+  "interval_s": {
+    "value": 1.0,
+    "unit": "mm"
+  },
+  "z_spatial_beam_combining_f": {
+    "value": 9.5,
+    "unit": "mm"
+  },
+  "collimation_lens_effective_focal_length_f": {
+    "value": 0.3,
+    "unit": "mm"
+  },
+  "collimation_lens_effective_focal_length_s": {
+    "value": 14.0,
+    "unit": "mm"
+  },
+  "z_mirror_and_chip": {
+    "value": 18.0,
+    "unit": "mm"
+  },
+  "z_polarized_beam_combining": {
+    "value": 1.0,
+    "unit": "mm"
+  },
+  "z_spatial_beam_combining_s": {
+    "value": 1.0,
+    "unit": "mm"
+  },
+  "coupling_lens_effective_focal_length_f": {
+    "value": 30.0,
+    "unit": "mm"
+  },
+  "coupling_lens_effective_focal_length_s": {
+    "value": 30.0,
+    "unit": "mm"
+  },
+  "z_coupling_lens_f_and_mirror": {
+    "value": 30.0,
+    "unit": "mm"
+  },
+  "fiber_core_diameter": {
+    "value": 100.0,
+    "unit": "um"
+  },
+  "fiber_cladding_diameter": {
+    "value": 220.0,
+    "unit": "um"
+  },
+  "fiber_na": {
+    "value": 0.12,
+    "unit": ""
+  },
+  "index_fiber_core": {
+    "value": 1.4673,
+    "unit": ""
+  },
+  "index_environment": {
+    "value": 1.0,
+    "unit": ""
+  },
+  "fiber_coiling_radius": {
+    "value": 150.0,
+    "unit": "mm"
+  }
+}

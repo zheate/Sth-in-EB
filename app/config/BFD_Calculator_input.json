@@ -10,7 +10,7 @@
     "soc_efl": "5.960",
     "soc_thickness": "0.5",
     "precision": 3,
-    "has_endcap": false,
-    "endcap_material": "",
-    "endcap_length": ""
+    "has_endcap": true,
+    "endcap_material": "SK1310_976",
+    "endcap_length": "5.0"
 }
