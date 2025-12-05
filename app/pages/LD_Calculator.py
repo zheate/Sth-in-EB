@@ -261,10 +261,13 @@ def render_parameter_inputs(config: Dict[str, Any]) -> Dict[str, float | int]:
             input_key = f'ld_param_{key}'
             default_value = config[key]['value']
             
+            # 避免 Streamlit 警告：如果 key 已在 session_state 中，不要通过 value 参数设置默认值
+            if input_key not in st.session_state:
+                st.session_state[input_key] = int(default_value) if field.is_integer else float(default_value)
+
             if field.is_integer:
                 st.number_input(
                     field.label, 
-                    value=int(default_value),
                     step=1, min_value=1, max_value=1_000_000_000, 
                     key=input_key
                 )
@@ -272,7 +275,6 @@ def render_parameter_inputs(config: Dict[str, Any]) -> Dict[str, float | int]:
                 step = 0.0001 if field.decimals == 4 else 0.001
                 st.number_input(
                     field.label, 
-                    value=float(default_value),
                     format=f'%.{field.decimals}f', 
                     step=step, 
                     key=input_key
@@ -1123,7 +1125,7 @@ def main():
         with c1:
             st.button('🚀 开始计算', type='primary', use_container_width=True, on_click=do_calculation)
         with c2:
-            do_optimize = st.button('✨ 优化', use_container_width=True, help="自动寻找最佳的SAC、快轴耦合镜和慢轴耦合镜焦距")
+            do_optimize = st.button('✨ 优化', use_container_width=True, help="自动寻找最佳的快轴耦合镜和慢轴耦合镜焦距")
         
         # 优化结果显示区域 (放在按钮下方，宽度与 col2 一致)
         optimization_container = st.container()
@@ -1156,15 +1158,14 @@ def run_optimization(config: Dict[str, Any], container):
         status_text = st.empty()
         progress_bar = st.progress(0)
     
-    # 初始参数
+    # 初始参数 [FOC, SOC]
     initial_params = [
-        config['collimation_lens_effective_focal_length_s']['value'],  # SAC
         config['coupling_lens_effective_focal_length_f']['value'],     # FOC
         config['coupling_lens_effective_focal_length_f']['value']      # SOC (Initial guess same as FOC if missing, or use actual SOC)
     ]
     # Correct SOC key if it was wrong in my thought process, checking file...
     # Line 106: 'coupling_lens_effective_focal_length_s'
-    initial_params[2] = config['coupling_lens_effective_focal_length_s']['value']
+    initial_params[1] = config['coupling_lens_effective_focal_length_s']['value']
 
     # 优化目标函数已移动到 optimization_logic.py 以支持多进程
 
@@ -1178,7 +1179,10 @@ def run_optimization(config: Dict[str, Any], container):
     # 回调函数更新进度 (scipy minimize callback is limited, just simple spinner)
     
     # 使用差分进化算法 (Differential Evolution) 进行全局优化
-    # workers=-1 表示使用所有可用 CPU 核心进行并行计算
+    # 为了防止系统卡顿，保留 2 个核心：os.cpu_count() - 2
+    import os
+    max_workers = max(1, (os.cpu_count() or 1) - 2)
+    
     from scipy.optimize import differential_evolution
     from optimization_logic import optimization_objective
     
@@ -1192,7 +1196,7 @@ def run_optimization(config: Dict[str, Any], container):
         maxiter=20,
         popsize=10,
         tol=0.01,
-        workers=-1,
+        workers=max_workers,
         disp=True,
         polish=True
     )
@@ -1212,22 +1216,18 @@ def run_optimization(config: Dict[str, Any], container):
             st.warning("已达到最大计算次数，显示当前找到的最佳结果。")
         
         # 显示优化结果
-        opt_sac = res.x[0]
-        opt_foc = res.x[1]
-        opt_soc = res.x[2]
+        opt_foc = res.x[0]
+        opt_soc = res.x[1]
         
         st.markdown("### 🏆 优化结果")
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            st.metric("最佳 SAC 焦距", f"{opt_sac:.3f} mm", delta=f"{opt_sac - initial_params[0]:.3f} mm")
+            st.metric("最佳 快轴耦合镜焦距", f"{opt_foc:.3f} mm", delta=f"{opt_foc - initial_params[0]:.3f} mm")
         with col2:
-            st.metric("最佳 快轴耦合镜焦距", f"{opt_foc:.3f} mm", delta=f"{opt_foc - initial_params[1]:.3f} mm")
-        with col3:
-            st.metric("最佳 慢轴耦合镜焦距", f"{opt_soc:.3f} mm", delta=f"{opt_soc - initial_params[2]:.3f} mm")
+            st.metric("最佳 慢轴耦合镜焦距", f"{opt_soc:.3f} mm", delta=f"{opt_soc - initial_params[1]:.3f} mm")
             
         # 应用按钮
         def apply_optimized():
-            st.session_state['ld_param_collimation_lens_effective_focal_length_s'] = float(opt_sac)
             st.session_state['ld_param_coupling_lens_effective_focal_length_f'] = float(opt_foc)
             st.session_state['ld_param_coupling_lens_effective_focal_length_s'] = float(opt_soc)
             st.toast("已应用优化参数，请点击“开始计算”查看详细结果")

@@ -12,9 +12,9 @@ def optimization_objective(params, config):
     """
     # Update config with new params
     temp_config = deepcopy(config)
-    temp_config['collimation_lens_effective_focal_length_s']['value'] = params[0]
-    temp_config['coupling_lens_effective_focal_length_f']['value'] = params[1]
-    temp_config['coupling_lens_effective_focal_length_s']['value'] = params[2]
+    # SAC remains unchanged from config
+    temp_config['coupling_lens_effective_focal_length_f']['value'] = params[0]
+    temp_config['coupling_lens_effective_focal_length_s']['value'] = params[1]
     
     try:
         # Convert parameters

@@ -10,7 +10,7 @@ PAGES_ROOT = APP_ROOT / "pages"
 
 DATA_MANAGER_PAGE = {
     "path": PAGES_ROOT / "Data_Manager.py",
-    "title": "数据管理",
+    "title": "项目管理",
     "desc": "管理已保存的数据集，支持查看、删除和导出",
 }
 

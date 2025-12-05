@@ -46,6 +46,6 @@ echo [3/3] 正在启动应用...
 echo.
 call "%ENV_DIR%\Scripts\activate.bat"
 cd /d "%~dp0"
-streamlit run app/app.py
+python -m streamlit run app/app.py
 
 pause
