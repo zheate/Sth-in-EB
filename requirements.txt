@@ -7,7 +7,6 @@ numpy==2.3.5
 altair==5.5.0
 matplotlib==3.10.7
 plotly==6.5.0
-
 # Computation
 scipy==1.16.3
 scikit-learn==1.7.2
@@ -20,6 +19,3 @@ pyyaml==6.0.3
 # Authentication
 bcrypt==5.0.0
 
-# Desktop App
-pywebview==5.4
-streamlit-desktop-app==0.3.4
