@@ -123,7 +123,7 @@ dmypy.json
 .pyre/
 
 # Streamlit
-.streamlit/secrets.toml
+.streamlit/
 
 # Data files (if any large datasets)
 *.csv
