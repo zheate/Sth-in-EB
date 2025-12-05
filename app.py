@@ -10,7 +10,7 @@ PAGES_ROOT = APP_ROOT / "pages"
 
 DATA_MANAGER_PAGE = {
     "path": PAGES_ROOT / "Data_Manager.py",
-    "title": "项目管理",
+    "title": "🏠项目管理",
     "desc": "管理已保存的数据集，支持查看、删除和导出",
 }
 
@@ -100,12 +100,15 @@ def build_pages(user_role: str = "user") -> dict:
         
         all_allowed = filtered_tools + filtered_data
         if all_allowed:
-            # 第一个允许的页面作为主页
-            first_page = all_allowed[0]
+            # 返回所有允许的页面
+            page_objects = []
+            for i, p in enumerate(all_allowed):
+                page_objects.append(
+                    st.Page(p["path"], title=p["title"], icon=p.get("icon", "📄"), default=(i == 0))
+                )
+            
             return {
-                "主页": [
-                    st.Page(first_page["path"], title=first_page["title"], icon=first_page.get("icon", "🏠"), default=True)
-                ]
+                "功能": page_objects
             }
         else:
             # 没有任何权限，返回空

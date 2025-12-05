@@ -2,13 +2,13 @@
   "users": [
     {
       "username": "qwe",
-      "password_hash": "$2b$12$UJal.pupcnn5lU21xFvVju1vU2IY08vfof/t0fwdSaDI35YBvKTFi",
-      "role": "admin"
+      "password_hash": "$2b$12$edQ0FIXOI88R03m8BLRH..r7wFEKhN5DI2xw3Oh7wA2wUxoZ9zsei",
+      "role": "user"
     },
     {
       "username": "sj",
       "password_hash": "$2b$12$/IXnIWfk.u75tUOrZaYlbeTH4SqCh3Lpz1u3/7mhdm.6K7ouh/WZ6",
-      "role": "ld_user"
+      "role": "tools"
     },
     {
       "username": "许永博",

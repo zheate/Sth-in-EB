@@ -10,3 +10,6 @@ serverAddress = "localhost"
 
 [client]
 showErrorDetails = true
+
+[theme]
+base = "light"

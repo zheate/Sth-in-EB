@@ -56,6 +56,14 @@ ROLE_PERMISSIONS = {
     "ld_user": {                 # LD用户：仅 LD 光纤耦合
         "pages": ["LD_Calculator.py"]
     },
+    "tools": {                   # 工具用户：访问所有工具类页面
+        "pages": [
+            "NA_Calculator.py",
+            "BFD_Calculator.py",
+            "Refractive_Index.py",
+            "LD_Calculator.py"
+        ]
+    },
 }
 
 # ==================== 辅助函数 ====================

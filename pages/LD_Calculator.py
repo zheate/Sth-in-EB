@@ -961,7 +961,17 @@ def main():
         </style>
     """, unsafe_allow_html=True)
     
-    st.title('光纤耦合模块设计')
+    st.markdown("""
+        <h1 style="
+            background: linear-gradient(to right, #ef5350, #f48fb1, #7e57c2, #2196f3, #26c6da, #43a047, #eeff41, #f9a825, #ff5722);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: bold;
+            padding-top: 2rem;
+        ">
+            光纤耦合模块设计
+        </h1>
+    """, unsafe_allow_html=True)
 
     ensure_config_exists()
     config = load_config()
