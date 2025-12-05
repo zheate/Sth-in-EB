@@ -89,6 +89,23 @@ def current_user() -> Optional[str]:
     return st.session_state.get(SESSION_USERNAME)
 
 
+def get_current_user() -> Optional[dict]:
+    """Get the logged-in user info including role."""
+    _init_session_state()
+    username = st.session_state.get(SESSION_USERNAME)
+    if not username:
+        return None
+    
+    record = get_user(username)
+    if record is None:
+        return None
+    
+    return {
+        "username": record.username,
+        "role": record.role,
+    }
+
+
 def render_login(title: str = "🔐 登录", subtitle: str = "请输入账号和密码") -> None:
     """Render a login form and handle submission feedback."""
     _init_session_state()

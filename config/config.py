@@ -47,6 +47,17 @@ AUTH_ADMIN_OS_USERS = [
     if user.strip()
 ]
 
+# 角色权限配置
+# "all": True 表示可以访问所有页面
+# "pages": ["xxx.py"] 表示只能访问指定的页面文件
+ROLE_PERMISSIONS = {
+    "admin": {"all": True},      # 管理员：所有权限
+    "user": {"all": True},       # 普通用户：所有权限
+    "ld_user": {                 # LD用户：仅 LD 光纤耦合
+        "pages": ["LD_Calculator.py"]
+    },
+}
+
 # ==================== 辅助函数 ====================
 def get_default_folder() -> Path:
     """获取默认数据文件夹路径"""
