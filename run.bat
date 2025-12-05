@@ -2,7 +2,6 @@
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
-set "APP_DIR=%SCRIPT_DIR%app"
 set "ENV_NAME=sth_eb"
 
 cls
@@ -11,15 +10,14 @@ echo   Data Analysis Tool
 echo ========================================
 echo.
 echo [INFO] Script directory: %SCRIPT_DIR%
-echo [INFO] App directory: %APP_DIR%
 echo [INFO] Using conda environment: %ENV_NAME%
 echo.
 
-REM Check if app folder exists
-if not exist "%APP_DIR%" (
-    echo [ERROR] app folder not found: %APP_DIR%
+REM Check if app.py exists
+if not exist "%SCRIPT_DIR%app.py" (
+    echo [ERROR] app.py not found: %SCRIPT_DIR%app.py
     echo.
-    echo [INFO] Please ensure the app folder is in the same directory as this script.
+    echo [INFO] Please ensure app.py is in the same directory as this script.
     echo.
     echo Press any key to exit...
     pause >nul
@@ -57,10 +55,10 @@ echo [OK] Found conda environment: %ENV_NAME%
 echo.
 
 REM Create Streamlit config if needed
-set "STREAMLIT_CONFIG=%APP_DIR%\.streamlit\config.toml"
+set "STREAMLIT_CONFIG=%SCRIPT_DIR%.streamlit\config.toml"
 if not exist "%STREAMLIT_CONFIG%" (
     echo [INFO] Creating Streamlit configuration...
-    if not exist "%APP_DIR%\.streamlit" mkdir "%APP_DIR%\.streamlit"
+    if not exist "%SCRIPT_DIR%.streamlit" mkdir "%SCRIPT_DIR%.streamlit"
     (
         echo [server]
         echo headless = false
@@ -104,7 +102,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-streamlit run "%APP_DIR%\app.py" --server.port=8501 --server.enableCORS=false
+streamlit run "%SCRIPT_DIR%app.py" --server.port=8501 --server.enableCORS=false
 
 if errorlevel 1 (
     echo.

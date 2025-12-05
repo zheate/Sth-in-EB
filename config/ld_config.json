@@ -1,6 +1,6 @@
 {
   "wavelength": {
-    "value": 0.976,
+    "value": 0.45,
     "unit": "um"
   },
   "waist_f": {
@@ -20,11 +20,11 @@
     "unit": ""
   },
   "number_f": {
-    "value": 19,
+    "value": 14,
     "unit": ""
   },
   "interval_f": {
-    "value": 0.42,
+    "value": 0.4,
     "unit": "mm"
   },
   "astigmatism": {
@@ -32,7 +32,7 @@
     "unit": "um"
   },
   "waist_s": {
-    "value": 170,
+    "value": 35,
     "unit": "um"
   },
   "divergence_angle_s": {
@@ -56,19 +56,19 @@
     "unit": "mm"
   },
   "z_spatial_beam_combining_f": {
-    "value": 7.57,
+    "value": 9.5,
     "unit": "mm"
   },
   "collimation_lens_effective_focal_length_f": {
-    "value": 0.36,
+    "value": 0.3,
     "unit": "mm"
   },
   "collimation_lens_effective_focal_length_s": {
-    "value": 18.0,
+    "value": 14.0,
     "unit": "mm"
   },
   "z_mirror_and_chip": {
-    "value": 24.0,
+    "value": 18.0,
     "unit": "mm"
   },
   "z_polarized_beam_combining": {
@@ -80,11 +80,11 @@
     "unit": "mm"
   },
   "coupling_lens_effective_focal_length_f": {
-    "value": 25.01527454262851,
+    "value": 14.0,
     "unit": "mm"
   },
   "coupling_lens_effective_focal_length_s": {
-    "value": 12.547991180965601,
+    "value": 14.0,
     "unit": "mm"
   },
   "z_coupling_lens_f_and_mirror": {
@@ -92,11 +92,11 @@
     "unit": "mm"
   },
   "fiber_core_diameter": {
-    "value": 220.0,
+    "value": 105.0,
     "unit": "um"
   },
   "fiber_cladding_diameter": {
-    "value": 242.0,
+    "value": 125.0,
     "unit": "um"
   },
   "fiber_na": {

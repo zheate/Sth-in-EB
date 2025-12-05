@@ -10,9 +10,9 @@ from pandas import read_excel, DataFrame, ExcelWriter
 
 assets_path = join(dirname(dirname(dirname(__file__))), 'assets')
 
-# JSON 配置文件路径 (位于项目根目录下的 config 文件夹)
-# __file__ -> models -> application -> LD -> pages -> app -> Sth-in-EB
-PROJECT_ROOT = dirname(dirname(dirname(dirname(dirname(dirname(__file__))))))
+# JSON 配置文件路径 (位于根目录的 config 文件夹)
+# __file__ -> models -> application -> LD -> pages -> Sth-in-EB (根目录)
+PROJECT_ROOT = dirname(dirname(dirname(dirname(dirname(__file__)))))
 CONFIG_JSON_PATH = join(PROJECT_ROOT, 'config', 'ld_config.json')
 
 # 参数定义：(row, col, key, unit_col)
